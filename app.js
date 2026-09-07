@@ -159,7 +159,7 @@ const OFF_SYLLABUS_PENALTY=3000;
    HSK 1-2 试过，中位数只有 3 个，六格的提示区常年填不满，不合适。
    难度只管「提示给什么」，不管「能接什么」——玩家想接更难的词照样接得上，
    自己加的词也一直算数。真要接不下去时会自动放宽，不会把人卡死。 */
-const BEGINNER_MAX_HSK=4,LEVEL_KEY="endless.level.v1",SCRIPT_KEY="endless.script.v1";
+const BEGINNER_MAX_HSK=4,LEVEL_KEY="endless.level.v1",SCRIPT_KEY="endless.script.v1",TYPE_KEY="endless.type.v1",RULES_KEY="endless.rules.v1";
 // 切字体要换掉整套词表，运行时替换 2MB 数据不值当，直接重载页面；
 // 棋面另存一份，简繁各玩各的，不会串。
 function setScript(mode){
@@ -168,17 +168,70 @@ function setScript(mode){
   try{localStorage.setItem(SCRIPT_KEY,want)}catch{}
   location.reload();
 }
+// 四字词多是成语，词频比三字词还低，摆进初级和中级的提示区只会挤掉真正好接的词。
+// 所以单独归到高级档：高级之外不出现在提示里，但任何档位都接得上——
+// 难度只管「提示给什么」，不管「能接什么」，这条规则对四字词一视同仁。
+const ADVANCED_MIN_LEN=4;
 let levelMode="intermediate";
 function withinLevel(word){
+  if(personalWords.has(word))return true; // 自己加的词一直算数，不受档位限制
+  if(word.length>=ADVANCED_MIN_LEN&&levelMode!=="advanced")return false;
   if(levelMode!=="beginner")return true;
-  if(personalWords.has(word))return true;
   const level=hskLevel.get(word);
   return level!==undefined&&level<=BEGINNER_MAX_HSK;
 }
+/* ---------- 规则是说明书，看完就该收起来 ----------
+   六条规则占掉第一屏顶上一大块，可它只在「还不会玩」的那几十秒里有用，
+   之后每次打开都在挡路。所以：新玩家进来先摊开，接上第一个词就自动收起——
+   接得上就说明已经会了，不用再看。之后每次进来都是收着的，
+   想再看点「玩法」两个字随时叫出来。选择记在 localStorage 里。 */
+let rulesOpen=true,rulesAuto=false;
+function setRulesOpen(open,{persist=true}={}){
+  rulesOpen=Boolean(open);
+  $("#ruleStrip").hidden=!rulesOpen;
+  const toggle=$("#rulesToggle");
+  toggle.setAttribute("aria-expanded",String(rulesOpen));
+  toggle.textContent=toTraditional(rulesOpen?"收起玩法":"玩法");
+  if(persist)try{localStorage.setItem(RULES_KEY,rulesOpen?"1":"0")}catch{}
+}
+function restoreRules(){
+  let saved=null;
+  try{saved=localStorage.getItem(RULES_KEY)}catch{}
+  // 从没收起过 = 新玩家，留给「接上第一个词」那次自动收起；
+  // 但棋面上已经有词了（上次没玩完就关了页面），说明早就会玩，直接收起来。
+  rulesAuto=saved===null&&!words.length;
+  setRulesOpen(saved!=="0"&&!(saved===null&&words.length),{persist:false});
+}
+
+/* ---------- 输入框默认收起 ----------
+   第一屏要一眼看懂：给几个词，点一个，接上去。输入框摆在最上面，
+   等于先要人想出一个词再动手，比点现成的候选词难得多，
+   何况手机上点它还会弹出键盘盖掉半屏。
+   但不能真去掉——候选词只给六个（更多十二个），想接表外的词、
+   想把自己的词攒进个人词库，都得靠打字。所以收起来，留一个链接随时叫出来。
+   叫出来这一下是玩家自己要打字，focus 正是他要的，键盘该弹就弹——
+   跟点候选词被动把光标抢走是两回事。 */
+let typeOpen=false;
+function setTypeOpen(open,{focus=false}={}){
+  typeOpen=Boolean(open);
+  const input=$("#wordInput"),toggle=$("#typeToggle");
+  input.hidden=!typeOpen;
+  toggle.setAttribute("aria-expanded",String(typeOpen));
+  toggle.textContent=toTraditional(typeOpen?"收起输入框":"自己打一个词");
+  try{localStorage.setItem(TYPE_KEY,typeOpen?"1":"0")}catch{}
+  if(typeOpen&&focus)input.focus();
+  if(!typeOpen){input.value="";syncInput()}
+}
+function restoreTypeOpen(){
+  let saved=null;
+  try{saved=localStorage.getItem(TYPE_KEY)}catch{}
+  setTypeOpen(saved==="1");
+}
+const LEVEL_MODES=["beginner","intermediate","advanced"];
 function setLevel(mode){
-  levelMode=mode==="beginner"?"beginner":"intermediate";
+  levelMode=LEVEL_MODES.includes(mode)?mode:"intermediate";
   try{localStorage.setItem(LEVEL_KEY,levelMode)}catch{}
-  for(const [id,value] of [["#levelBeginner","beginner"],["#levelIntermediate","intermediate"]]){
+  for(const [id,value] of [["#levelBeginner","beginner"],["#levelIntermediate","intermediate"],["#levelAdvanced","advanced"]]){
     const button=$(id);
     button.classList.toggle("on",levelMode===value);
     button.setAttribute("aria-pressed",String(levelMode===value));
@@ -196,24 +249,35 @@ function markScriptButtons(){
 function restoreLevel(){
   let saved=null;
   try{saved=localStorage.getItem(LEVEL_KEY)}catch{}
-  setLevel(saved==="beginner"?"beginner":"intermediate");
+  setLevel(LEVEL_MODES.includes(saved)?saved:"intermediate");
 } // 不在 HSK 里的词往后压，但不排除——生僻不等于不能接
 
 // 三字词只占词表的一成，词频又普遍偏低，纯按分数排几乎永远进不了前六——
 // 实测：96% 的位置其实有三字词可接（平均 18 个），却只有 9% 的位置能在前六里
 // 看到一个。玩家于是根本遇不到它们，混合长度的意义也就没了。
 // 所以给三字词留固定席位，仍从得分最高的里面挑。
+// 四字词得再单独留一个席位，沿用三字词那套会落空。实测三千个位置：
+//   可接的位置    三字 97.1%     四字 96.3%（平均 15.6 个）——词是有的
+//   裸排进前六    三字 11.0%     四字  2.0%——比三字词还沉，几乎见不到
+//   首个的中位位  三字 17        四字 37——limit*4 那个窗口是照着 17 定的
+// 所以四字词若跟三字词抢同一批席位，两个席位都会被三字词占走（它们分数更高），
+// 高级档等于白选。窗口也得单独放宽：limit*4 只覆盖 27.3% 的位置，
+// limit*8 到 59.1%，拽进来的词平均排在第 25 位，还算这一位置上接得上的常用词；
+// 再宽（limit*12 → 82.9%，平均第 35 位）就开始捞四十位开外的冷僻成语，不划算。
+const LONG_WINDOW=4,FOUR_WINDOW=8;
 function reserveLongWords(list,limit){
   const slots=Math.floor(limit/3);
-  // 席位只给排得上号的三字词。留席位是因为三字词得分普遍偏低、几乎进不了前六，
-  // 但不该为此把远处的冷僻词拽进来：「照片」后面要到第 26 位才出现三字词
-  // 「片麻岩」，硬留席位就把第 5、6 位的「骗人」「骗子」挤了出去。
-  // 实测三千个位置，首个三字词的中位位置是 17，超过 24 的占三成——
-  // 窗口取 limit 的四倍，七成位置照样有席位，也不会再捞到底下的生僻词。
-  const long=list.slice(0,limit*4).filter(word=>word.length>2).slice(0,slots);
-  if(!long.length)return list.slice(0,limit);
-  const rest=list.filter(word=>!long.includes(word)).slice(0,limit-long.length);
-  const keep=new Set([...long,...rest]);
+  const picked=[];
+  // 高级档先给四字词占一个，不然它永远排不过三字词
+  if(levelMode==="advanced"&&slots>0)
+    picked.push(...list.slice(0,limit*FOUR_WINDOW).filter(word=>word.length>=4).slice(0,1));
+  // 剩下的席位照旧给三字词。初级和中级下 withinLevel 已经把四字词滤掉了，
+  // 这里的 length>2 仍然只会挑到三字词，跟原来一模一样。
+  const long=list.slice(0,limit*LONG_WINDOW).filter(word=>word.length>2&&!picked.includes(word)).slice(0,slots-picked.length);
+  picked.push(...long);
+  if(!picked.length)return list.slice(0,limit);
+  const rest=list.filter(word=>!picked.includes(word)).slice(0,limit-picked.length);
+  const keep=new Set([...picked,...rest]);
   return list.filter(word=>keep.has(word)); // 回到原来的分数顺序，长短混排
 }
 
@@ -259,9 +323,9 @@ let words=[],pendingWord="",hintsOpen=false,hintsExpanded=false;
 function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(words))}catch{}}
 function restore(){try{const raw=localStorage.getItem(STORAGE_KEY),parsed=raw?JSON.parse(raw):null;if(Array.isArray(parsed))words=parsed.filter(word=>typeof word==="string"&&isWord(word))}catch{}}
 
-const MAX_WORD=3;
+const MAX_WORD=4;
 function cleanWord(value){return Array.from(value.trim().replace(/[\s，。！？、]/g,"")).slice(0,MAX_WORD).join("")}
-function isWord(word){return /^\p{Script=Han}{2,3}$/u.test(word)}
+function isWord(word){return /^\p{Script=Han}{2,4}$/u.test(word)}
 function connectionLabel(a,b){return a===b?a:`${a}/${b}`}
 
 function buildPath(list){
@@ -388,7 +452,7 @@ function render(){
   $("#history").innerHTML=words.map((word,i)=>`<span class="history-chip${inDict(word)?"":" coined"}"><b data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}<em>${escapeHtml(pinyinOf(word))}</em></b>${i<words.length-1?"<i>→</i>":""}</span>`).join("");
   if(!words.length){
     $("#joinPrompt").innerHTML=zh`<strong>从任意词开始</strong><span>例如：前途、图书馆</span>`;
-    $("#turnHint").textContent=toTraditional("先说一个词（两字或三字）");
+    $("#turnHint").textContent=toTraditional("先说一个词（两字到四字）");
   }else{
     const last=words.at(-1).at(-1),goal=words[0][0],direction=words.length%2===1?toTraditional("向下"):toTraditional("向右");
     const remaining=nextChoices(words.at(-1),new Set(words)).length;
@@ -446,6 +510,8 @@ function addWord(value,{force=false,silent=false}={}){
   }
   const learned=!silent&&!inDict(word)&&rememberWord(word);
   words.push(word);$("#wordInput").value="";clearVoice();hintsExpanded=false;render();syncInput();
+  // 接上第一个词就说明已经会玩了，规则条自动收起，之后每次进来都收着
+  if(rulesAuto&&words.length===1){rulesAuto=false;setRulesOpen(false)}
   const first=words[0][0],last=word[1];
   if(words.length>1&&last===first){
     $("#turnHint").textContent=toTraditional("首尾相逢，已通关");
@@ -538,7 +604,7 @@ window.addEventListener("gloss-ready",()=>render());
 // 一秒里十几次——这正是把 Chrome 语音队列搞卡死的那种用法。等 280ms 再开口，
 // 路过的词一个都不会触发，真正停下来看的那个才念。
 const PRONOUNCE_TIMES=3,PRONOUNCE_GAP=900,PRONOUNCE_TIMEOUT=2500,PRONOUNCE_STALL=1500,PRONOUNCE_DELAY=280;
-let pronounceOn=true,pronouncing="",pronounceTimer=0,hoverTimer=0;
+let pronouncing="",pronounceTimer=0,hoverTimer=0;
 
 const synth=("speechSynthesis" in window)?window.speechSynthesis:null;
 let zhVoice=null;
@@ -571,7 +637,7 @@ function setSpeechState(state){
   note.innerHTML=help?`${escapeHtml(toTraditional(help.zh))}<em>${escapeHtml(help.en)}</em>`:"";
 }
 function checkSpeech(){
-  if(!synth){setSpeechState("unsupported");$("#speakToggle").disabled=true;return}
+  if(!synth){setSpeechState("unsupported");return}
   if(speechState==="blocked")return; // 已经确认发不出声，别被语音列表覆盖掉
   const voices=synth.getVoices();
   // 列表是异步来的，空的时候还说不准，等 voiceschanged
@@ -610,7 +676,7 @@ function stopPronounce(){
   if(synth&&(synth.speaking||synth.pending))synth.cancel();
 }
 function startPronounce(word){
-  if(!pronounceOn||!synth||!word)return;
+  if(!synth||!word)return;
   stopPronounce();
   pronouncing=word;
   let said=0;
@@ -770,18 +836,14 @@ $("#scriptSimplified").addEventListener("click",()=>setScript("simp"));
 $("#scriptTraditional").addEventListener("click",()=>setScript("trad"));
 $("#levelBeginner").addEventListener("click",()=>setLevel("beginner"));
 $("#levelIntermediate").addEventListener("click",()=>setLevel("intermediate"));
+$("#levelAdvanced").addEventListener("click",()=>setLevel("advanced"));
+$("#typeToggle").addEventListener("click",()=>setTypeOpen(!typeOpen,{focus:true}));
+$("#rulesToggle").addEventListener("click",()=>{rulesAuto=false;setRulesOpen(!rulesOpen)});
 $("#personalNote").addEventListener("click",event=>{
   if(!event.target.closest("#clearPersonal"))return;
   forgetPersonal();render();setMessage(toTraditional("已清空你自己加的词。"));
 });
 $("#micButton").addEventListener("click",()=>{listening?stopListening():startListening()});
-$("#speakToggle").addEventListener("click",event=>{
-  pronounceOn=!pronounceOn;
-  event.currentTarget.setAttribute("aria-pressed",String(pronounceOn));
-  event.currentTarget.classList.toggle("on",pronounceOn);
-  event.currentTarget.textContent=pronounceOn?toTraditional("🔊 发音"):toTraditional("🔇 静音");
-  if(!pronounceOn)stopPronounce();
-});
 $("#voicePanel").addEventListener("click",event=>{
   const chip=event.target.closest(".voice-chip");if(!chip)return;
   addWord(chip.dataset.word);
@@ -792,5 +854,5 @@ window.addEventListener("resize",()=>{clearTimeout(resizeTimer);resizeTimer=setT
 
 for(const selector of ["#hintPanel","#voicePanel","#history"])wireHoverPreview(selector);
 
-localiseStaticText();markScriptButtons();initVoice();checkSpeech();restorePersonal();restore();restoreLevel();syncInput();
+localiseStaticText();markScriptButtons();initVoice();checkSpeech();restorePersonal();restore();restoreLevel();restoreTypeOpen();restoreRules();syncInput();
 if(words.length)setMessage(zh`接着上次继续——已有 ${words.length} 个词。`,"success");
