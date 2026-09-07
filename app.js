@@ -16,7 +16,6 @@ const soundMap=new Map();
 Object.entries(window.SOUND_TABLE||{}).forEach(([syllable,chars])=>{for(const ch of chars){if(!soundMap.has(ch))soundMap.set(ch,new Set());soundMap.get(ch).add(syllable)}});
 function readings(char){return soundMap.has(char)?[...soundMap.get(char)]:[]}
 function readingLabel(char){const list=readings(char);return list.length?list.join("/"):toTraditional("未知读音")}
-function sameSound(a,b){if(a===b)return true;const first=soundMap.get(a),second=soundMap.get(b);if(!first||!second)return false;for(const syllable of first)if(second.has(syllable))return true;return false}
 
 /* ---------- 词表（words.js），下标即常用度排名 ---------- */
 const rankOf=new Map(),bySound=new Map(),byChar=new Map();
@@ -110,12 +109,19 @@ function inDict(word){return rankOf.has(word)}
 
    所以：用词典给出的整词读音来判断，并按学习顺序分三档——
    先同字，再同音同调，最后同音不同调。 */
-// 返回 [首字读音, 末字读音]——中间的字接词用不到
+// 返回 [[首字读音, 末字读音], ...]——中间的字接词用不到。
+// 一个词可能有好几条读音（便宜 bian4 yi2 / pian2 yi5，同行 hang2 / xing2），
+// 全都要参与匹配，否则玩家按另一个读音接词会被当成读音不同。
+// 音节数跟字数对不上的义项（儿化之类）跳过，它们指不到首末字。
 function wordReadings(word){
   const entry=glossOf(word);
   if(!entry)return null;
-  const syllables=entry.split("|")[0].split(" ").filter(Boolean);
-  return syllables.length===word.length?[syllables[0],syllables.at(-1)]:null;
+  const out=[];
+  for(const reading of entry.split("|")[0].split(";")){
+    const syllables=reading.split(" ").filter(Boolean);
+    if(syllables.length===word.length)out.push([syllables[0],syllables.at(-1)]);
+  }
+  return out.length?out:null;
 }
 // CC-CEDICT 把 ü 写成 "u:"（nu:3），sounds.js 写成 v（nv）。两边要对得上，
 // 否则一边有词典读音、一边只有单字读音时会误判为不同音。
@@ -126,12 +132,17 @@ const bareSyllable=syllable=>syllable.replace(/[0-5]$/,"").replace(/u:/g,"v");
 function matchTier(previous,candidate){
   if(candidate[0]===previous.at(-1))return 0; // 同字，最好认
   const before=wordReadings(previous),after=wordReadings(candidate);
-  const need=before?[bareSyllable(before[1])]:readings(previous.at(-1));
-  const got=after?[bareSyllable(after[0])]:readings(candidate[0]);
-  if(!need.some(syllable=>got.includes(syllable)))return -1; // 在这里根本不同音
-  // 两边都查得到读音才谈得上分声调；轻声没有调值，按同调算
-  if(before&&after)return before[1]===after[0]||before[1].endsWith("5")||after[0].endsWith("5")?1:2;
-  return 2;
+  const need=before?before.map(pair=>pair[1]):readings(previous.at(-1));
+  const got=after?after.map(pair=>pair[0]):readings(candidate[0]);
+  // 多音词逐条试，取最好的一档——玩家按哪条读音接的都算数
+  let best=-1;
+  for(const left of need)for(const right of got){
+    if(bareSyllable(left)!==bareSyllable(right))continue;
+    // 两边都查得到整词读音才谈得上分声调；轻声没有调值，按同调算
+    const tier=before&&after?(left===right||left.endsWith("5")||right.endsWith("5")?1:2):2;
+    if(best<0||tier<best)best=tier;
+  }
+  return best; // -1 就是在这里根本不同音
 }
 /* ---------- HSK 词表（hsk.js） ----------
    jieba 的词频来自新闻和书面语料，跟学习者该学的词并不重合：
@@ -194,7 +205,12 @@ function restoreLevel(){
 // 所以给三字词留固定席位，仍从得分最高的里面挑。
 function reserveLongWords(list,limit){
   const slots=Math.floor(limit/3);
-  const long=list.filter(word=>word.length>2).slice(0,slots);
+  // 席位只给排得上号的三字词。留席位是因为三字词得分普遍偏低、几乎进不了前六，
+  // 但不该为此把远处的冷僻词拽进来：「照片」后面要到第 26 位才出现三字词
+  // 「片麻岩」，硬留席位就把第 5、6 位的「骗人」「骗子」挤了出去。
+  // 实测三千个位置，首个三字词的中位位置是 17，超过 24 的占三成——
+  // 窗口取 limit 的四倍，七成位置照样有席位，也不会再捞到底下的生僻词。
+  const long=list.slice(0,limit*4).filter(word=>word.length>2).slice(0,slots);
   if(!long.length)return list.slice(0,limit);
   const rest=list.filter(word=>!long.includes(word)).slice(0,limit-long.length);
   const keep=new Set([...long,...rest]);
@@ -218,9 +234,17 @@ function nextChoices(previous,used){
     all.push(word);
     if(withinLevel(word))atLevel.push(word);
   }
-  // 初级词表接不下去时放宽到全部，宁可给难词也不要给空白
-  const chosen=atLevel.length?atLevel:all;
-  return chosen.sort((a,b)=>score(a)-score(b));
+  // 初级词表接不下去时放宽到全部，宁可给难词也不要给空白。
+  // 原来的写法是「一个都没有才放宽」，可真正难受的不是零，是一两个：
+  // 「照片」后面初级只有 便宜、片面 两个词，全表其实有 43 个（片刻、骗人、骗子、偏向……），
+  // 提示区于是摆两个词空四格。实测三千个位置，完全为零的只有 2.1%，
+  // 「有但不够六个」占 22.6%——十倍于前者，却一直没算进这条规则里。
+  // 所以不够摆满就从全表往后补，初级词仍然排在最前面。
+  atLevel.sort((a,b)=>score(a)-score(b));
+  if(atLevel.length>=HINT_LIMIT_MORE)return atLevel;
+  const inLevel=new Set(atLevel);
+  all.sort((a,b)=>score(a)-score(b));
+  return [...atLevel,...all.filter(word=>!inLevel.has(word))];
 }
 function openers(){
   const source=[...rankOf.keys()].filter(withinLevel);
@@ -298,6 +322,17 @@ function renderPersonal(){
   note.hidden=!personalWords.size;
   if(personalWords.size)note.innerHTML=zh`你的词库里有 <b>${personalWords.size}</b> 个自己加的词：${[...personalWords].slice(-8).join("、")}${personalWords.size>8?"…":""}　<button type="button" id="clearPersonal" class="link-button">清空</button>`;
 }
+/* glosses.js 有 1.5MB，是 async 加载的，开局那一两秒里它还没到。
+   没到的时候 wordReadings 一律返回 null，matchTier 只好退回「单字的所有读音」——
+   于是「汽车」后面跟出 具有、举行、巨大、俱乐部：「车」除了 chē 还有个 jū 的音
+   （象棋里的车），单字匹配就把所有 jù/jū 的词都放了进来。词典到位后会自己变好，
+   可玩家看到的第一屏就是错的，比空着还糟。所以要判断读音时先不出提示，
+   等 gloss-ready 重新渲染。开局词不用比读音，不受影响。
+   万一 glosses.js 根本没加载成功，也不能一直空着——等够久就按单字读音先凑合。 */
+let glossGaveUp=false;
+const glossesReady=()=>!!window.WORD_GLOSS||glossGaveUp;
+setTimeout(()=>{if(!window.WORD_GLOSS){glossGaveUp=true;render()}},8000);
+
 function renderHints(){
   const panel=$("#hintPanel"),button=$("#hintButton"),used=new Set(words);
   const last=words.length?words.at(-1).at(-1):"",goal=words.length?words[0][0]:"";
@@ -307,6 +342,7 @@ function renderHints(){
   syncInput();
   if(!hintsOpen){panel.hidden=true;return}
   panel.hidden=false;
+  if(words.length&&!glossesReady()){panel.innerHTML=zh`<p class="hint-empty">词表读音还在载入，马上就好。</p>`;return}
   if(!list.length){panel.innerHTML=zh`<p class="hint-empty">常用词表里接不下去了。撤回一步，或自己想一个词硬接。</p>`;return}
   const limit=hintsExpanded?HINT_LIMIT_MORE:HINT_LIMIT;
   let shown=reserveLongWords(list,limit);
@@ -365,10 +401,29 @@ function render(){
 
 function setMessage(text,type=""){const el=$("#message");el.textContent=text;el.className=`message ${type}`.trim()}
 
+// 报读音时优先用整词读音：「一个」的「个」念 ge，「合作」的「合」念 hé。
+// 直接罗列单字的所有读音会把话说反——「合」的确列着 gě，可那是它单用时的音，
+// 不是「合作」里的音，照列出来玩家只会更糊涂。查不到整词才退回单字。
+function readingIn(word,head){
+  const parts=wordReadings(word);
+  if(!parts)return readingLabel(head?word[0]:word.at(-1));
+  return [...new Set(parts.map(pair=>head?pair[0]:pair[1]))].map(toneMark).join("/");
+}
+
+/* 判断接不接得上，跟出提示用同一条规则（matchTier）：以词典给出的整词读音为准，
+   查不到整词才退回单字读音。这里原来用的是 sameSound，只看两个单字的读音集合有没有
+   交集——于是「一个」后面接「合作」被悄悄放行：「合」确实有个 gě 音，可「合作」念 hé。
+   同一个毛病在提示那边早就修掉了（见上面「候选词的筛选与排序」），接受这边一直没跟上。
+   实测三千个位置，74% 都存在这样的词：接得上，却永远不会出现在提示里。
+   仍然只是软提醒——玩家点一下就能照接，词典没收全的读音不该由游戏说了算。
+   glosses.js 是异步加载的，还没到位时 matchTier 自动退回单字读音，正好等于原来的行为。 */
 function problemsFor(word){
   const list=[];
   if(words.includes(word))list.push({hard:true,text:zh`“${word}”这一轮已经用过了，换一个。`});
-  if(words.length){const previous=words.at(-1).at(-1);if(!sameSound(previous,word[0]))list.push({hard:false,kind:"sound",text:zh`“${previous}”（${readingLabel(previous)}）与“${word[0]}”（${readingLabel(word[0])}）读音不同。`})}
+  if(words.length&&matchTier(words.at(-1),word)<0){
+    const previous=words.at(-1);
+    list.push({hard:false,kind:"sound",text:zh`“${previous.at(-1)}”（${readingIn(previous,false)}）与“${word[0]}”（${readingIn(word,true)}）读音不同。`});
+  }
   if(!inDict(word))list.push({hard:false,kind:"dict",text:zh`“${word}”不在常用词表里。`});
   return list;
 }
@@ -414,7 +469,7 @@ function hanziOnly(text){return Array.from(text).filter(ch=>/\p{Script=Han}/u.te
 // 把每条备选切成相邻两字，能接上的、在词表里的排前面。
 function voiceCandidates(transcripts){
   const seen=new Set(),used=new Set(words),out=[];
-  const need=words.length?words.at(-1).at(-1):"";
+  const need=words.length?words.at(-1):""; // 整个词，matchTier 要靠它查词典读音
   for(const raw of transcripts){
     const text=hanziOnly(raw);
     for(let size=2;size<=MAX_WORD;size++)for(let i=0;i+size<=text.length;i++){
@@ -422,7 +477,7 @@ function voiceCandidates(transcripts){
       if(seen.has(word)||used.has(word))continue;
       seen.add(word);
       // 整句刚好是一个词，说明用户就是在说它；从长句里切出来的只能算候补。
-      out.push({word,whole:text.length===size,connects:!need||sameSound(need,word[0]),known:inDict(word)});
+      out.push({word,whole:text.length===size,connects:!need||matchTier(need,word)>=0,known:inDict(word)});
     }
   }
   out.sort((a,b)=>(b.connects-a.connects)||(b.whole-a.whole)||(b.known-a.known)||((rankOf.get(a.word)??1e9)-(rankOf.get(b.word)??1e9)));
@@ -445,8 +500,10 @@ function toneMark(syllable){
   return marks?body.slice(0,at)+marks[tone-1]+body.slice(at+1):body;
 }
 function glossOf(word){const table=window.WORD_GLOSS;return table&&Object.hasOwn(table,word)?table[word]:null}
-function pinyinOf(word){const entry=glossOf(word);return entry?entry.split("|")[0].split(" ").map(toneMark).join(" "):""}
-function tipFor(word){const entry=glossOf(word);if(!entry)return word;const [pinyin,meaning]=entry.split("|");return `${word}  ${pinyin.split(" ").map(toneMark).join(" ")}  ${meaning}`}
+const showReading=reading=>reading.split(" ").map(toneMark).join(" ");
+// 接词记录里的拼音只给主读音，多音词全列会把那一行撑宽；完整的读音在悬停提示里。
+function pinyinOf(word){const entry=glossOf(word);return entry?showReading(entry.split("|")[0].split(";")[0]):""}
+function tipFor(word){const entry=glossOf(word);if(!entry)return word;const [pinyin,meaning]=entry.split("|");return `${word}  ${pinyin.split(";").map(showReading).join(" / ")}  ${meaning}`}
 let previewWord="";
 function setPreview(word){previewWord=word||"";renderGloss()}
 function escapeHtml(text){return text.replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]))}
@@ -655,13 +712,35 @@ $("#wordInput").addEventListener("input",event=>{if(!event.isComposing)event.tar
 $("#wordInput").addEventListener("compositionend",event=>{event.target.value=cleanWord(event.target.value);syncInput()});
 $("#overrideButton").addEventListener("click",()=>{if(pendingWord)addWord(pendingWord,{force:true})});
 $("#hintButton").addEventListener("click",()=>{hintsOpen=!hintsOpen;renderHints()});
+/* 点候选词不再把光标送进输入框。原来点完就 focus，手指点的时候虚拟键盘会从屏幕下方
+   弹起，盖住候选区和它下面的「接上去」——选完词还得先收键盘才能确认，白多一步。
+   试过按设备类型区分（媒体查询、pointerdown 的 pointerType），都不对：iPad 接上
+   触控板就报 hover:hover + pointer:fine，跟桌面分不开；而且光标跳走这件事本身，
+   在鼠标上一样让人措手不及——选词和确认是两步，中间不需要谁抢焦点。
+   于是一律不 focus。回车那条捷径由下面的兜底补回来。 */
 $("#hintPanel").addEventListener("click",event=>{
   if(event.target.closest("#moreHints")){hintsExpanded=!hintsExpanded;renderHints();return}
   const chip=event.target.closest(".hint-chip");if(!chip)return;
   for(const other of $("#hintPanel").querySelectorAll(".hint-chip.selected"))other.classList.remove("selected");
   chip.classList.add("selected");
-  const input=$("#wordInput");input.value=chip.dataset.word;input.focus();syncInput();
+  $("#wordInput").value=chip.dataset.word;syncInput();
   setMessage(zh`选了“${chip.dataset.word}”，按下面的“接上去”确认。`);
+});
+/* 光标不再进输入框，回车就没法提交了——焦点不在表单里，submit 事件根本不触发。
+   这里补一条兜底，把这条捷径接回来。
+   候选词按钮单独处理：鼠标点过之后焦点多半还留在那颗按钮上（Chrome 如此），
+   这时按回车走浏览器默认行为只是把同一个词再选一遍，永远提交不了。
+   所以看它选中没有——输入框里已经是这个词，就当「确认」提交；
+   还不是（键盘 Tab 过来第一次按），就让默认行为把它选进输入框。
+   于是键盘路径是：Tab 到候选词，回车选中，再回车接上去。
+   其余输入框、链接、对话框一概不抢，那些地方回车各有各的意思。 */
+document.addEventListener("keydown",event=>{
+  if(event.key!=="Enter"||event.isComposing||event.metaKey||event.ctrlKey||event.altKey||event.shiftKey)return;
+  const target=event.target,chip=target?.closest?.(".hint-chip");
+  if(!chip&&target?.closest?.("input,textarea,select,button,a,summary,dialog,[contenteditable]"))return;
+  if(chip&&chip.dataset.word!==$("#wordInput").value.trim())return;
+  if($("#submitButton").hidden||!$("#wordInput").value.trim())return;
+  event.preventDefault();addWord($("#wordInput").value);
 });
 $("#undoButton").addEventListener("click",()=>{if(!words.length)return;const removed=words.pop();$("#winDialog").close();render();setMessage(zh`已撤回“${removed}”。`)});
 $("#restartButton").addEventListener("click",()=>{words=[];pendingWord="";$("#wordInput").value="";syncInput();$("#overrideButton").hidden=true;$("#winDialog").close();render();setMessage(toTraditional("已重新开始。"))});
