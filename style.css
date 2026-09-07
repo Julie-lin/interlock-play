@@ -73,3 +73,4 @@
 .credits{width:min(1180px,calc(100% - 28px));margin:26px auto 40px;padding-top:16px;border-top:1px solid #cfc7b7;color:var(--muted);font-size:.78rem;line-height:1.6}
 .credits p{margin:0 0 6px}
 .credits a{color:var(--jade);font-weight:800}
+.level-gap{flex:1 1 18px;min-width:0}

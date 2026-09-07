@@ -32,6 +32,10 @@
       <span class="level-label">难度<em>Level</em></span>
       <button id="levelBeginner" class="level-button" type="button" aria-pressed="false">初级<em>Beginner · HSK 1–4</em></button>
       <button id="levelIntermediate" class="level-button on" type="button" aria-pressed="true">中级<em>Intermediate · all words</em></button>
+      <span class="level-gap"></span>
+      <span class="level-label">字体<em>Script</em></span>
+      <button id="scriptSimplified" class="level-button on" type="button" aria-pressed="true">简体<em>Simplified</em></button>
+      <button id="scriptTraditional" class="level-button" type="button" aria-pressed="false">繁體<em>Traditional</em></button>
     </section>
 
     <section class="play-area">
@@ -117,11 +121,21 @@
     <button id="closeWinButton" class="add-button" type="button">看看我的接词</button>
   </dialog>
 
-  <script src="sounds.js"></script>
-  <script src="words.js"></script>
-  <script src="hsk.js"></script>
-  <!-- 1.3MB 的英文释义表，async 加载，不挡住开局 -->
-  <script async src="glosses.js"></script>
+  <script>
+  // 简繁两套词表，只加载正在用的那一套——切换时整页重载，不在运行时换 2MB 数据。
+  (function () {
+    var traditional = false;
+    try { traditional = localStorage.getItem("endless.script.v1") === "trad"; } catch (e) {}
+    window.SCRIPT_MODE = traditional ? "trad" : "simp";
+    document.documentElement.lang = traditional ? "zh-Hant" : "zh-Hans";
+    var suffix = traditional ? "-t" : "";
+    document.write('<script src="sounds.js"><\/script>');
+    document.write('<script src="words' + suffix + '.js"><\/script>');
+    document.write('<script src="hsk' + suffix + '.js"><\/script>');
+    // 1.5MB 的英文释义表，async 加载，不挡住开局
+    document.write('<script async src="glosses' + suffix + '.js"><\/script>');
+  })();
+  </script>
   <script src="app.js"></script>
 </body>
 </html>

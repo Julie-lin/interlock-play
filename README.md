@@ -7,7 +7,7 @@ character to win.
 
 **Play: https://julie-lin.github.io/interlock-play/**
 
-Static page, no backend. Hover a suggestion to hear it read aloud; the 说一个词 button
+Available in **simplified and traditional characters** — switch with the 字體 toggle. Static page, no backend. Hover a suggestion to hear it read aloud; the 说一个词 button
 takes voice input in Chrome and Edge.
 
 ## Data sources
@@ -15,9 +15,9 @@ takes voice input in Chrome and Edge.
 | File | Contents | Source and licence |
 | --- | --- | --- |
 | `sounds.js` | homophone table, 411 syllables | generated with [pinyin-pro](https://github.com/zh-lx/pinyin-pro) (MIT) |
-| `words.js` | 27,983 words, frequency-ordered | entries [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict) (CC BY-SA 4.0), frequencies [jieba](https://github.com/fxsjy/jieba) (MIT) |
-| `glosses.js` | pinyin and English definitions | [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict) (CC BY-SA 4.0) |
-| `hsk.js` | HSK 3.0 levels | [Pleco's HSK 3.0 list](https://github.com/elkmovie/hsk30) (MIT) |
+| `words.js` / `words-t.js` | 27,983 / 28,144 words, frequency-ordered | entries [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict) (CC BY-SA 4.0), frequencies [jieba](https://github.com/fxsjy/jieba) (MIT) |
+| `glosses.js` / `glosses-t.js` | pinyin and English definitions | [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict) (CC BY-SA 4.0) |
+| `hsk.js` / `hsk-t.js` | HSK 3.0 levels | [Pleco's HSK 3.0 list](https://github.com/elkmovie/hsk30) (MIT) |
 
 Because the definitions derive from CC-CEDICT, this repository is distributed under
 **CC BY-SA 4.0**.

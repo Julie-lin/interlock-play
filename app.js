@@ -1,6 +1,11 @@
+// 简体还是繁体，由 index.html 里的加载器决定。必须在最前面：
+// EXAMPLE 就在下一行用到它，const 有暂时性死区，声明晚了整个文件都跑不起来。
+const traditionalMode=window.SCRIPT_MODE==="trad";
 // 混着两字词和三字词，最后「化学」的学回到「学校」的学，正好演示通关
-const EXAMPLE=["学校","消息","系统","通过","国家","家里","例如","如果说","说实话","化学"];
-const STORAGE_KEY="endless.chain.v1";
+const EXAMPLE=traditionalMode
+  ?["學校","消息","系統","通過","國家","家裡","例如","如果說","說實話","化學"]
+  :["学校","消息","系统","通过","国家","家里","例如","如果说","说实话","化学"];
+const STORAGE_KEY=window.SCRIPT_MODE==="trad"?"endless.chain.t.v1":"endless.chain.v1";
 // 候选词默认只给 6 个。这些词本来就故意读音相近（空军 空间 空中 空气……），
 // 越像越互相干扰，一次摆十二个反而没人细看，学习者只会扫一眼挑第一个。
 // 想要更多的人点「更多」就是了。
@@ -10,7 +15,7 @@ const HINT_LIMIT=6,HINT_LIMIT_MORE=12;
 const soundMap=new Map();
 Object.entries(window.SOUND_TABLE||{}).forEach(([syllable,chars])=>{for(const ch of chars){if(!soundMap.has(ch))soundMap.set(ch,new Set());soundMap.get(ch).add(syllable)}});
 function readings(char){return soundMap.has(char)?[...soundMap.get(char)]:[]}
-function readingLabel(char){const list=readings(char);return list.length?list.join("/"):"未知读音"}
+function readingLabel(char){const list=readings(char);return list.length?list.join("/"):toTraditional("未知读音")}
 function sameSound(a,b){if(a===b)return true;const first=soundMap.get(a),second=soundMap.get(b);if(!first||!second)return false;for(const syllable of first)if(second.has(syllable))return true;return false}
 
 /* ---------- 词表（words.js），下标即常用度排名 ---------- */
@@ -22,6 +27,38 @@ list.forEach((word,rank)=>{
   if(!byChar.has(head))byChar.set(head,[]);byChar.get(head).push(word);
   for(const syllable of readings(head)){if(!bySound.has(syllable))bySound.set(syllable,[]);bySound.get(syllable).push(word)}
 })})();
+/* ---------- 界面文字的简繁转换 ----------
+   只转界面上的固定文字，不碰词表内容——繁体词表里的字本来就是对的，
+   再转一次反而会错（公里 会被转成 公裡）。所以：
+     - 静态 HTML 在启动时整体转一遍。那一刻棋盘、候选区、记录区都还是空的，
+       扫到的只有界面文字。
+     - 动态文字走 zh`` 标签模板：只转字面部分，插进去的词原样保留。
+   这张表是按本界面的用法逐字定的。里 一律作「裡」（词表里、这台电脑里），
+   后 一律作「後」（接上后），发 一律作「發」（发音）——换了用法就得重新定。 */
+const TRAD_UI=(()=>{const packed="万萬与與两兩个個么麼义義书書从從会會体體关關内內几幾别別发發后後听聽图圖圆圓声聲复複头頭将將并並库庫开開异異录錄态態戏戲择擇换換断斷无無显顯权權来來极極标標栏欄横橫汉漢没沒浏瀏游遊满滿点點环環现現电電着著确確简簡约約级級经經结結给給绝絕统統继繼续續脑腦装裝览覽认認记記许許设設识識词詞试試语語误誤说說请請读讀调調轮輪载載输輸过過这這进進连連选選释釋里裡钮鈕银銀错錯阶階难難静靜频頻风風馆館麦麥龙龍",map=new Map();
+for(let i=0;i<packed.length;i+=2)map.set(packed[i],packed[i+1]);return map})();
+function toTraditional(text){
+  if(!traditionalMode)return text;
+  let out="";
+  for(const ch of text)out+=TRAD_UI.get(ch)??ch;
+  return out;
+}
+// 标签模板：转字面，放过插值
+function zh(parts,...values){
+  return parts.reduce((out,part,i)=>out+toTraditional(part)+(i<values.length?values[i]:""),"");
+}
+function localiseStaticText(){
+  if(!traditionalMode)return;
+  document.title=toTraditional(document.title);
+  const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+  const nodes=[];
+  for(let node=walker.nextNode();node;node=walker.nextNode())nodes.push(node);
+  for(const node of nodes)node.nodeValue=toTraditional(node.nodeValue);
+  for(const el of document.querySelectorAll("[placeholder],[title],[aria-label]"))
+    for(const attr of ["placeholder","title","aria-label"])
+      if(el.hasAttribute(attr))el.setAttribute(attr,toTraditional(el.getAttribute(attr)));
+}
+
 /* ---------- 玩家自己的词库 ----------
    词表是词典给的，总有漏网的：「存起来」这种口语里天天用的说法就不在 CC-CEDICT 里。
    玩家确认要用的词，就记进他自己的浏览器，以后不再提示「不在词表里」，
@@ -80,7 +117,9 @@ function wordReadings(word){
   const syllables=entry.split("|")[0].split(" ").filter(Boolean);
   return syllables.length===word.length?[syllables[0],syllables.at(-1)]:null;
 }
-const bareSyllable=syllable=>syllable.replace(/[0-5]$/,"");
+// CC-CEDICT 把 ü 写成 "u:"（nu:3），sounds.js 写成 v（nv）。两边要对得上，
+// 否则一边有词典读音、一边只有单字读音时会误判为不同音。
+const bareSyllable=syllable=>syllable.replace(/[0-5]$/,"").replace(/u:/g,"v");
 // 只要有一边知道整词读音，就用那一边去卡，别退回「两个字各自的所有读音」——
 // 那样「呵斥」（hē）会因为「呵」还有个 a 的读音而跟在「啊」后面，
 // 「腌制」（yān）同理。自造词没有词典条目，这条路走得最多。
@@ -109,7 +148,15 @@ const OFF_SYLLABUS_PENALTY=3000;
    HSK 1-2 试过，中位数只有 3 个，六格的提示区常年填不满，不合适。
    难度只管「提示给什么」，不管「能接什么」——玩家想接更难的词照样接得上，
    自己加的词也一直算数。真要接不下去时会自动放宽，不会把人卡死。 */
-const BEGINNER_MAX_HSK=4,LEVEL_KEY="endless.level.v1";
+const BEGINNER_MAX_HSK=4,LEVEL_KEY="endless.level.v1",SCRIPT_KEY="endless.script.v1";
+// 切字体要换掉整套词表，运行时替换 2MB 数据不值当，直接重载页面；
+// 棋面另存一份，简繁各玩各的，不会串。
+function setScript(mode){
+  const want=mode==="trad"?"trad":"simp";
+  if((window.SCRIPT_MODE||"simp")===want)return;
+  try{localStorage.setItem(SCRIPT_KEY,want)}catch{}
+  location.reload();
+}
 let levelMode="intermediate";
 function withinLevel(word){
   if(levelMode!=="beginner")return true;
@@ -127,6 +174,13 @@ function setLevel(mode){
   }
   hintsExpanded=false;
   render();
+}
+function markScriptButtons(){
+  for(const [id,value] of [["#scriptSimplified","simp"],["#scriptTraditional","trad"]]){
+    const button=$(id),active=(window.SCRIPT_MODE||"simp")===value;
+    button.classList.toggle("on",active);
+    button.setAttribute("aria-pressed",String(active));
+  }
 }
 function restoreLevel(){
   let saved=null;
@@ -242,18 +296,18 @@ function boardSpace(){
 function renderPersonal(){
   const note=$("#personalNote");
   note.hidden=!personalWords.size;
-  if(personalWords.size)note.innerHTML=`你的词库里有 <b>${personalWords.size}</b> 个自己加的词：${[...personalWords].slice(-8).join("、")}${personalWords.size>8?"…":""}　<button type="button" id="clearPersonal" class="link-button">清空</button>`;
+  if(personalWords.size)note.innerHTML=zh`你的词库里有 <b>${personalWords.size}</b> 个自己加的词：${[...personalWords].slice(-8).join("、")}${personalWords.size>8?"…":""}　<button type="button" id="clearPersonal" class="link-button">清空</button>`;
 }
 function renderHints(){
   const panel=$("#hintPanel"),button=$("#hintButton"),used=new Set(words);
   const last=words.length?words.at(-1).at(-1):"",goal=words.length?words[0][0]:"";
   const list=words.length?nextChoices(words.at(-1),used):openers();
-  button.textContent=words.length?`「${last}」能接什么？`:"给我几个开局词";
+  button.textContent=words.length?zh`「${last}」能接什么？`:"给我几个开局词";
   button.setAttribute("aria-expanded",String(hintsOpen));
   syncInput();
   if(!hintsOpen){panel.hidden=true;return}
   panel.hidden=false;
-  if(!list.length){panel.innerHTML='<p class="hint-empty">常用词表里接不下去了。撤回一步，或自己想一个词硬接。</p>';return}
+  if(!list.length){panel.innerHTML=zh`<p class="hint-empty">常用词表里接不下去了。撤回一步，或自己想一个词硬接。</p>`;return}
   const limit=hintsExpanded?HINT_LIMIT_MORE:HINT_LIMIT;
   let shown=reserveLongWords(list,limit);
   // 能收尾的词一定要看得见——那是这一局的赢法，不该被挤到「更多」里
@@ -263,8 +317,8 @@ function renderHints(){
   }
   const chips=shown.map(word=>`<button type="button" class="hint-chip${goal&&word[1]===goal?" closes":""}" data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}</button>`).join("");
   const more=list.length>shown.length||hintsExpanded
-    ?`<button type="button" id="moreHints" class="more-hints">${hintsExpanded?"收起":`更多（还有 ${list.length-shown.length} 个）`}</button>`:"";
-  panel.innerHTML=`${chips}${more}<p class="hint-note">点一下填进输入框，再按“接上去”。${goal?`带 ★ 的词能收尾，回到「${goal}」。`:""}</p>`;
+    ?zh`<button type="button" id="moreHints" class="more-hints">${hintsExpanded?toTraditional("收起"):`更多（还有 ${list.length-shown.length} 个）`}</button>`:"";
+  panel.innerHTML=zh`${chips}${more}<p class="hint-note">点一下填进输入框，再按“接上去”。${goal?`带 ★ 的词能收尾，回到「${goal}」。`:""}</p>`;
 }
 
 function render(){
@@ -289,21 +343,21 @@ function render(){
       if(dot){cell.textContent=""}
       else{cell.style.fontSize=`${Math.round(size*(data.chars.length>1?.34:.46))}px`;cell.textContent=data.chars.join("/")}
       cell.setAttribute("role","gridcell");
-      cell.setAttribute("aria-label",data.chars.length>1?`${data.chars.join("或")}，同音共格`:data.chars[0]);
+      cell.setAttribute("aria-label",data.chars.length>1?zh`${data.chars.join("或")}，同音共格`:data.chars[0]);
       board.appendChild(cell);
     });
   }
   $("#wordCount").textContent=words.length;$("#undoButton").disabled=!words.length;$("#historySection").hidden=!words.length;
-  $("#historyCount").textContent=words.length?` · 接龙已有 ${words.length} 词`:"";
+  $("#historyCount").textContent=words.length?zh` · 接龙已有 ${words.length} 词`:"";
   $("#history").innerHTML=words.map((word,i)=>`<span class="history-chip${inDict(word)?"":" coined"}"><b data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}<em>${escapeHtml(pinyinOf(word))}</em></b>${i<words.length-1?"<i>→</i>":""}</span>`).join("");
   if(!words.length){
-    $("#joinPrompt").innerHTML="<strong>从任意词开始</strong><span>例如：前途、图书馆</span>";
-    $("#turnHint").textContent="先说一个词（两字或三字）";
+    $("#joinPrompt").innerHTML=zh`<strong>从任意词开始</strong><span>例如：前途、图书馆</span>`;
+    $("#turnHint").textContent=toTraditional("先说一个词（两字或三字）");
   }else{
-    const last=words.at(-1).at(-1),goal=words[0][0],direction=words.length%2===1?"向下":"向右";
+    const last=words.at(-1).at(-1),goal=words[0][0],direction=words.length%2===1?toTraditional("向下"):toTraditional("向右");
     const remaining=nextChoices(words.at(-1),new Set(words)).length;
-    $("#joinPrompt").innerHTML=`<strong>请用“${last}”或它的同音字开头</strong><span>目标：末字回到「${goal}」 · 下一词将${direction}延伸</span>`;
-    $("#turnHint").textContent=remaining?`下一步：${direction}（从词表里选择一个可接词）`:`下一步：${direction}（常用词表已接不下去）`;
+    $("#joinPrompt").innerHTML=zh`<strong>请用“${last}”或它的同音字开头</strong><span>目标：末字回到「${goal}」 · 下一词将${direction}延伸</span>`;
+    $("#turnHint").textContent=remaining?zh`下一步：${direction}（从词表里选择一个可接词）`:zh`下一步：${direction}（常用词表已接不下去）`;
     requestAnimationFrame(()=>{$("#boardViewport").scrollTo({left:$("#boardViewport").scrollWidth,top:$("#boardViewport").scrollHeight,behavior:"smooth"})});
   }
   renderHints();renderPersonal();save();
@@ -313,16 +367,16 @@ function setMessage(text,type=""){const el=$("#message");el.textContent=text;el.
 
 function problemsFor(word){
   const list=[];
-  if(words.includes(word))list.push({hard:true,text:`“${word}”这一轮已经用过了，换一个。`});
-  if(words.length){const previous=words.at(-1).at(-1);if(!sameSound(previous,word[0]))list.push({hard:false,kind:"sound",text:`“${previous}”（${readingLabel(previous)}）与“${word[0]}”（${readingLabel(word[0])}）读音不同。`})}
-  if(!inDict(word))list.push({hard:false,kind:"dict",text:`“${word}”不在常用词表里。`});
+  if(words.includes(word))list.push({hard:true,text:zh`“${word}”这一轮已经用过了，换一个。`});
+  if(words.length){const previous=words.at(-1).at(-1);if(!sameSound(previous,word[0]))list.push({hard:false,kind:"sound",text:zh`“${previous}”（${readingLabel(previous)}）与“${word[0]}”（${readingLabel(word[0])}）读音不同。`})}
+  if(!inDict(word))list.push({hard:false,kind:"dict",text:zh`“${word}”不在常用词表里。`});
   return list;
 }
 
 function addWord(value,{force=false,silent=false}={}){
   const word=cleanWord(value);
   pendingWord="";$("#overrideButton").hidden=true;
-  if(!isWord(word)){setMessage("请输入两个或三个汉字。","error");return false}
+  if(!isWord(word)){setMessage(toTraditional("请输入两个或三个汉字。"),"error");return false}
   if(!silent){
     const problems=problemsFor(word),blocking=problems.filter(problem=>problem.hard);
     if(blocking.length){setMessage(blocking.map(problem=>problem.text).join(""),"error");return false}
@@ -330,8 +384,8 @@ function addWord(value,{force=false,silent=false}={}){
       pendingWord=word;
       const button=$("#overrideButton");
       button.hidden=false;
-      button.textContent=problems.length>1?"我确定，仍然接上":problems[0].kind==="sound"?"读音相同，仍然接上":"这是个词，仍然接上";
-      setMessage(`${problems.map(problem=>problem.text).join("")}确认无误就点下面的按钮。`,"error");
+      button.textContent=problems.length>1?toTraditional("我确定，仍然接上"):problems[0].kind==="sound"?toTraditional("读音相同，仍然接上"):toTraditional("这是个词，仍然接上");
+      setMessage(zh`${problems.map(problem=>problem.text).join("")}确认无误就点下面的按钮。`,"error");
       return false;
     }
   }
@@ -339,14 +393,14 @@ function addWord(value,{force=false,silent=false}={}){
   words.push(word);$("#wordInput").value="";clearVoice();hintsExpanded=false;render();syncInput();
   const first=words[0][0],last=word[1];
   if(words.length>1&&last===first){
-    $("#turnHint").textContent="首尾相逢，已通关";
-    $("#joinPrompt").innerHTML=`<strong>末字“${last}”已回到首字</strong><span>这一轮圆满结束，也可以继续接下去</span>`;
-    setMessage(`末字“${last}”回到了首字，通关！`,"success");
-    $("#winSummary").textContent=`你用 ${words.length} 个词，从“${first}”出发，又回到了“${last}”。`;
+    $("#turnHint").textContent=toTraditional("首尾相逢，已通关");
+    $("#joinPrompt").innerHTML=zh`<strong>末字“${last}”已回到首字</strong><span>这一轮圆满结束，也可以继续接下去</span>`;
+    setMessage(zh`末字“${last}”回到了首字，通关！`,"success");
+    $("#winSummary").textContent=zh`你用 ${words.length} 个词，从“${first}”出发，又回到了“${last}”。`;
     $("#winDialog").showModal();
   }else if(!silent){
     const previous=words.length>1?words.at(-2).at(-1):"",join=words.length>1?connectionLabel(previous,word[0]):"";
-    setMessage(`${words.length===1?`已从“${word}”开始。`:`已接上“${word}”${join.includes("/")?`，共格显示“${join}”`:""}。`}${learned?`“${word}”已记进你的词库。`:""}`,"success");
+    setMessage(zh`${words.length===1?`已从“${word}”开始。`:`已接上“${word}”${join.includes("/")?zh`，共格显示“${join}”`:""}。`}${learned?`“${word}”已记进你的词库。`:""}`,"success");
   }
   return true;
 }
@@ -404,7 +458,7 @@ function renderGloss(){
   // 高度是固定的：内容变化不能把下面的按钮顶来顶去
   box.classList.toggle("preview",Boolean(entry&&previewWord));
   if(!entry){
-    box.innerHTML='<span class="gloss-idle">指向或选中一个词，这里显示拼音和英文</span>';
+    box.innerHTML=zh`<span class="gloss-idle">指向或选中一个词，这里显示拼音和英文</span>`;
     return;
   }
   const [pinyin,meaning]=entry.split("|");
@@ -457,7 +511,7 @@ function setSpeechState(state){
   speechState=state;
   const note=$("#speechNote"),help=SPEECH_HELP[state];
   note.hidden=!help;
-  note.innerHTML=help?`${escapeHtml(help.zh)}<em>${escapeHtml(help.en)}</em>`:"";
+  note.innerHTML=help?`${escapeHtml(toTraditional(help.zh))}<em>${escapeHtml(help.en)}</em>`:"";
 }
 function checkSpeech(){
   if(!synth){setSpeechState("unsupported");$("#speakToggle").disabled=true;return}
@@ -555,14 +609,14 @@ function clearVoice(){$("#voicePanel").hidden=true;$("#voicePanel").innerHTML=""
 function showHeard(transcripts){
   const panel=$("#voicePanel"),list=voiceCandidates(transcripts);
   panel.hidden=false;
-  const raw=transcripts.map(hanziOnly).filter(Boolean).join("、")||"（没听清）";
+  const raw=transcripts.map(hanziOnly).filter(Boolean).join("、")||toTraditional("（没听清）");
   if(!list.length){
-    panel.innerHTML=`<p class="voice-heard">听到：${raw}</p><p class="hint-note">没找到能用的词，再说一次试试。</p>`;
+    panel.innerHTML=zh`<p class="voice-heard">听到：${raw}</p><p class="hint-note">没找到能用的词，再说一次试试。</p>`;
     return;
   }
-  panel.innerHTML=`<p class="voice-heard">听到：${raw} — 点一个确认</p>`+
-    list.map(item=>`<button type="button" class="voice-chip${item.connects?"":" offbeat"}" data-word="${item.word}" title="${escapeHtml(tipFor(item.word))}">${item.word}${item.known?"":"<i>生词</i>"}</button>`).join("")+
-    `<p class="hint-note">接不上的词标成灰色，选它需要再确认一次。</p>`;
+  panel.innerHTML=zh`<p class="voice-heard">听到：${raw} — 点一个确认</p>`+
+    list.map(item=>zh`<button type="button" class="voice-chip${item.connects?"":" offbeat"}" data-word="${item.word}" title="${escapeHtml(tipFor(item.word))}">${item.word}${item.known?"":"<i>生词</i>"}</button>`).join("")+
+    zh`<p class="hint-note">接不上的词标成灰色，选它需要再确认一次。</p>`;
 }
 function startListening(){
   const demo=new URLSearchParams(location.search).get("demo");
@@ -572,8 +626,8 @@ function startListening(){
   recognition=new SpeechRecognition();
   recognition.lang="zh-CN";recognition.interimResults=false;recognition.maxAlternatives=5;
   listening=true;
-  $("#micButton").classList.add("listening");$("#micLabel").textContent="在听……再点一下停";
-  setMessage("我在听——说一个词。");
+  $("#micButton").classList.add("listening");$("#micLabel").textContent=toTraditional("在听……再点一下停");
+  setMessage(toTraditional("我在听——说一个词。"));
   recognition.onresult=event=>{
     const transcripts=[];
     for(let i=0;i<event.results.length;i++){
@@ -583,16 +637,16 @@ function startListening(){
     showHeard(transcripts);
   };
   recognition.onerror=event=>{
-    setMessage(event.error==="not-allowed"?"浏览器没拿到麦克风权限，请在地址栏允许后重试。":event.error==="no-speech"?"没听到声音，再说一次。":`语音识别出错：${event.error}`,"error");
+    setMessage(event.error==="not-allowed"?toTraditional("浏览器没拿到麦克风权限，请在地址栏允许后重试。"):event.error==="no-speech"?toTraditional("没听到声音，再说一次。"):zh`语音识别出错：${event.error}`,"error");
   };
-  recognition.onend=()=>{listening=false;$("#micButton").classList.remove("listening");$("#micLabel").textContent="说一个词"};
+  recognition.onend=()=>{listening=false;$("#micButton").classList.remove("listening");$("#micLabel").textContent=toTraditional("说一个词")};
   recognition.start();
 }
 function stopListening(){recognition?.stop();listening=false}
 function initVoice(){
   const supported=Boolean(SpeechRecognition)||new URLSearchParams(location.search).has("demo");
   $("#micButton").disabled=!supported;
-  if(!supported)$("#micLabel").textContent="此浏览器不支持语音";
+  if(!supported)$("#micLabel").textContent=toTraditional("此浏览器不支持语音");
   $("#voiceNote").hidden=supported;
 }
 
@@ -607,24 +661,26 @@ $("#hintPanel").addEventListener("click",event=>{
   for(const other of $("#hintPanel").querySelectorAll(".hint-chip.selected"))other.classList.remove("selected");
   chip.classList.add("selected");
   const input=$("#wordInput");input.value=chip.dataset.word;input.focus();syncInput();
-  setMessage(`选了“${chip.dataset.word}”，按下面的“接上去”确认。`);
+  setMessage(zh`选了“${chip.dataset.word}”，按下面的“接上去”确认。`);
 });
-$("#undoButton").addEventListener("click",()=>{if(!words.length)return;const removed=words.pop();$("#winDialog").close();render();setMessage(`已撤回“${removed}”。`)});
-$("#restartButton").addEventListener("click",()=>{words=[];pendingWord="";$("#wordInput").value="";syncInput();$("#overrideButton").hidden=true;$("#winDialog").close();render();setMessage("已重新开始。")});
-$("#exampleButton").addEventListener("click",()=>{words=[];EXAMPLE.forEach(word=>addWord(word,{silent:true}));setMessage("已加载完整示例：途/徒、型/形、态/太会在共格中显示。","success")});
+$("#undoButton").addEventListener("click",()=>{if(!words.length)return;const removed=words.pop();$("#winDialog").close();render();setMessage(zh`已撤回“${removed}”。`)});
+$("#restartButton").addEventListener("click",()=>{words=[];pendingWord="";$("#wordInput").value="";syncInput();$("#overrideButton").hidden=true;$("#winDialog").close();render();setMessage(toTraditional("已重新开始。"))});
+$("#exampleButton").addEventListener("click",()=>{words=[];EXAMPLE.forEach(word=>addWord(word,{silent:true}));setMessage(toTraditional("已加载完整示例：途/徒、型/形、态/太会在共格中显示。"),"success")});
 $("#closeWinButton").addEventListener("click",()=>$("#winDialog").close());
+$("#scriptSimplified").addEventListener("click",()=>setScript("simp"));
+$("#scriptTraditional").addEventListener("click",()=>setScript("trad"));
 $("#levelBeginner").addEventListener("click",()=>setLevel("beginner"));
 $("#levelIntermediate").addEventListener("click",()=>setLevel("intermediate"));
 $("#personalNote").addEventListener("click",event=>{
   if(!event.target.closest("#clearPersonal"))return;
-  forgetPersonal();render();setMessage("已清空你自己加的词。");
+  forgetPersonal();render();setMessage(toTraditional("已清空你自己加的词。"));
 });
 $("#micButton").addEventListener("click",()=>{listening?stopListening():startListening()});
 $("#speakToggle").addEventListener("click",event=>{
   pronounceOn=!pronounceOn;
   event.currentTarget.setAttribute("aria-pressed",String(pronounceOn));
   event.currentTarget.classList.toggle("on",pronounceOn);
-  event.currentTarget.textContent=pronounceOn?"🔊 发音":"🔇 静音";
+  event.currentTarget.textContent=pronounceOn?toTraditional("🔊 发音"):toTraditional("🔇 静音");
   if(!pronounceOn)stopPronounce();
 });
 $("#voicePanel").addEventListener("click",event=>{
@@ -637,5 +693,5 @@ window.addEventListener("resize",()=>{clearTimeout(resizeTimer);resizeTimer=setT
 
 for(const selector of ["#hintPanel","#voicePanel","#history"])wireHoverPreview(selector);
 
-initVoice();checkSpeech();restorePersonal();restore();restoreLevel();syncInput();
-if(words.length)setMessage(`接着上次继续——已有 ${words.length} 个词。`,"success");
+localiseStaticText();markScriptButtons();initVoice();checkSpeech();restorePersonal();restore();restoreLevel();syncInput();
+if(words.length)setMessage(zh`接着上次继续——已有 ${words.length} 个词。`,"success");
