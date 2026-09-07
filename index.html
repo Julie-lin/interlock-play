@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f1df" />
   <meta name="description" content="环环相扣 Interlock：中文接词游戏，两字或三字词横竖交替，同字或同音相接，末字回到首字即通关。" />
   <title>环环相扣 · Interlock</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
   <main class="page">
@@ -129,13 +129,18 @@
     window.SCRIPT_MODE = traditional ? "trad" : "simp";
     document.documentElement.lang = traditional ? "zh-Hant" : "zh-Hans";
     var suffix = traditional ? "-t" : "";
-    document.write('<script src="sounds.js"><\/script>');
-    document.write('<script src="words' + suffix + '.js"><\/script>');
-    document.write('<script src="hsk' + suffix + '.js"><\/script>');
+    // 每份静态文件后面挂一个版本号。GitHub Pages 给的是 cache-control: max-age=600，
+    // 浏览器可以拿着旧的 app.js 不放；网址上加 ?v= 骗不过它——页面是新的，脚本还是缓存里那份。
+    // 版本号变了地址就变了，一定重新下载。改完文件记得跟着改这里（含上面的 style.css
+    // 和下面的 app.js，三处一起动），不然新代码到不了已经开着页面的人手上。
+    var V = "?v=2";
+    document.write('<script src="sounds.js' + V + '"><\/script>');
+    document.write('<script src="words' + suffix + '.js' + V + '"><\/script>');
+    document.write('<script src="hsk' + suffix + '.js' + V + '"><\/script>');
     // 1.5MB 的英文释义表，async 加载，不挡住开局
-    document.write('<script async src="glosses' + suffix + '.js"><\/script>');
+    document.write('<script async src="glosses' + suffix + '.js' + V + '"><\/script>');
   })();
   </script>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
