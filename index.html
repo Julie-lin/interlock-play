@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f1df" />
+  <meta name="description" content="环环相扣 Interlock：中文接词游戏，两字或三字词横竖交替，同字或同音相接，末字回到首字即通关。" />
+  <title>环环相扣 · Interlock</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <div>
+        <p class="kicker">新年接词游戏</p>
+        <h1>环环相扣</h1>
+        <p class="latin"><b>Interlock</b> · a Chinese word-chain game</p>
+      </div>
+      <div class="count"><strong id="wordCount">0</strong><span>词</span></div>
+    </header>
+
+    <section class="rule-strip" aria-label="游戏规则">
+      <span>① 每次两字或三字<em>Two or three characters per turn</em></span>
+      <span>② 同字或同音相接<em>Link on the same character, or one that sounds alike</em></span>
+      <span>③ 末字回到首字即通关<em>Close the loop back to your first character to win</em></span>
+      <span>④ 一轮之内不重复用词<em>No word twice in one round</em></span>
+      <span>⑤ 可以说，也可以打字<em>Speak a word or type it</em></span>
+      <span>⑥ 指向候选词即读出发音<em>Point at a suggestion to hear it read aloud</em></span>
+    </section>
+
+    <section class="level-bar" aria-label="难度 Level">
+      <span class="level-label">难度<em>Level</em></span>
+      <button id="levelBeginner" class="level-button" type="button" aria-pressed="false">初级<em>Beginner · HSK 1–4</em></button>
+      <button id="levelIntermediate" class="level-button on" type="button" aria-pressed="true">中级<em>Intermediate · all words</em></button>
+    </section>
+
+    <section class="play-area">
+      <div class="board-card">
+        <div class="board-toolbar">
+          <div>
+            <p class="label">接词阶梯</p>
+            <p id="turnHint" class="turn-hint">先说一个词（两字或三字）</p>
+          </div>
+          <button id="exampleButton" class="small-button" type="button">加载完整示例</button>
+        </div>
+        <div id="boardViewport" class="board-viewport">
+          <div id="board" class="board" role="grid" aria-label="接词阶梯"></div>
+          <div id="emptyBoard" class="empty-board">
+            <span>环</span><i></i><span>环</span>
+            <p>第一个词会横着放在这里</p>
+          </div>
+        </div>
+      </div>
+
+      <aside class="entry-card">
+        <p class="label">输入下一词</p>
+        <div id="joinPrompt" class="join-prompt">
+          <strong>从任意词开始</strong>
+          <span>例如：前途、图书馆</span>
+        </div>
+        <form id="wordForm" novalidate>
+          <label for="wordInput" class="sr-only">请输入两个或三个汉字</label>
+          <input id="wordInput" type="text" inputmode="text" autocomplete="off" placeholder="两字或三字" aria-describedby="message" />
+          <p id="glossBox" class="gloss-box"></p>
+          <button id="hintButton" class="hint-button" type="button" aria-expanded="false" aria-controls="hintPanel">给我几个开局词</button>
+          <div id="hintPanel" class="hint-panel" hidden></div>
+          <button id="submitButton" class="add-button" type="submit" hidden>接上去</button>
+        </form>
+        <div class="voice-row">
+          <button id="micButton" class="mic-button" type="button">
+            <span class="mic-icon" aria-hidden="true">🎙️</span>
+            <span id="micLabel">说一个词</span>
+          </button>
+          <button id="speakToggle" class="speak-toggle on" type="button" aria-pressed="true" title="鼠标停在词上时念出读音">🔊 发音</button>
+        </div>
+        <p id="voiceNote" class="voice-note" hidden>语音输入需要 Chrome 或 Edge，并且用 http://127.0.0.1 或 https 打开。</p>
+        <p id="speechNote" class="voice-note warn" hidden></p>
+        <div id="voicePanel" class="voice-panel" hidden></div>
+        <p id="message" class="message" aria-live="polite">等待第一个词……</p>
+        <button id="overrideButton" class="override-button" type="button" hidden>读音相同，仍然连接</button>
+        <div class="secondary-actions">
+          <button id="undoButton" type="button" disabled>撤回一步</button>
+          <button id="restartButton" type="button">重新开始</button>
+        </div>
+        <details>
+          <summary>同音判断说明</summary>
+          <p>完全相同的字一定可以相接，即使在两个词里读音不同，例如“力量→量具”。同音异字由内置拼音表判断（不分声调，所以“无→屋”可以相接）；多音字任一读音相同即可，例如“银行→行走”。极生僻字若不在表内，可人工确认。</p>
+          <p id="personalNote" class="personal-note" hidden></p>
+          <p>词表收录约 2.8 万个常用词：两字词约 2.5 万，三字词约 3 千。不在表内的词不会被拒绝，确认一下就能接——你确认过的词会记进你自己的词库，只存在这台电脑上，别人看不到。</p>
+        </details>
+      </aside>
+    </section>
+
+    <section id="historySection" class="history-section" hidden>
+      <p class="label">接词记录<span id="historyCount"></span></p>
+      <div id="history" class="history"></div>
+    </section>
+  </main>
+
+  <footer class="credits">
+    <p>词表与释义来自
+      <a href="https://www.mdbg.net/chinese/dictionary?page=cc-cedict" rel="noopener">CC-CEDICT</a>（CC BY-SA 4.0）、
+      <a href="https://github.com/fxsjy/jieba" rel="noopener">jieba</a> 词频（MIT）、
+      <a href="https://github.com/elkmovie/hsk30" rel="noopener">HSK 3.0 词表</a>（Pleco，MIT）；
+      拼音由 <a href="https://github.com/zh-lx/pinyin-pro" rel="noopener">pinyin-pro</a>（MIT）生成。
+      本站沿用 CC BY-SA 4.0。</p>
+    <p lang="en">Word list and definitions from CC-CEDICT (CC BY-SA 4.0), word frequencies from jieba (MIT),
+      HSK 3.0 levels from Pleco's list (MIT), pinyin generated with pinyin-pro (MIT).
+      This page is likewise CC BY-SA 4.0.</p>
+  </footer>
+
+  <dialog id="winDialog">
+    <div class="lantern" aria-hidden="true">福</div>
+    <p class="win-kicker">首尾相逢</p>
+    <h2>环环相扣，首尾成圆！</h2>
+    <p id="winSummary"></p>
+    <button id="closeWinButton" class="add-button" type="button">看看我的接词</button>
+  </dialog>
+
+  <script src="sounds.js"></script>
+  <script src="words.js"></script>
+  <script src="hsk.js"></script>
+  <!-- 1.3MB 的英文释义表，async 加载，不挡住开局 -->
+  <script async src="glosses.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
