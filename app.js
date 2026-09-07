@@ -618,6 +618,10 @@ function startPronounce(word){
     if(pronouncing!==word)return; // 鼠标已经移开
     said++;
     if(synth.paused)synth.resume();
+    // 手机上开局那一下 getVoices() 常常还是空的，voiceschanged 也不一定来过，
+    // zhVoice 于是留在 null。上面说过，Safari 拿不到指定发音人就用默认英文嗓子念中文，
+    // onstart/onend 全都正常，就是没声音。真要开口之前再挑一次，这时列表通常已经到了。
+    if(!zhVoice)pickVoice();
     const utterance=new SpeechSynthesisUtterance(word);
     utterance.lang="zh-CN";utterance.rate=.8;
     if(zhVoice)utterance.voice=zhVoice;
@@ -658,6 +662,22 @@ function wireHoverPreview(selector){
     const el=event.target.closest("[data-word]");if(!el)return;
     if(event.relatedTarget&&el.contains(event.relatedTarget))return; // 还在同一个词里面
     setPreview("");stopPronounce();
+  });
+  /* 手机和平板上一个字也念不出来，原因有两条，缺一条都还是哑的：
+     一是上面这套 mouseover/mouseout 触屏根本不触发，没有「悬停」这回事；
+     二是就算补个 mouseover，iOS 只认用户手势里同步发出的 speak()，
+     而 hover 那条要等 280ms（PRONOUNCE_DELAY），回调跑起来时手势上下文早没了，
+     speak() 被静悄悄丢掉——不报错，也不出声，最难查的那种。
+     所以触屏单独走一条：手指抬起就念，不延时。延时本来是为了防鼠标扫过一排候选词
+     时反复 cancel()+speak() 把 Chrome 的队列搞卡（见 PRONOUNCE_DELAY 那段），
+     手指点的是哪个就是哪个，不存在扫过去的问题，不需要等。
+     pointerup 里 startPronounce 会先把 pronouncing 设成这个词，
+     随后 iOS 补发的那串合成鼠标事件走到 mouseover 时会被那句同词判断挡掉，不会重念。 */
+  root.addEventListener("pointerup",event=>{
+    if(event.pointerType==="mouse")return; // 鼠标照旧走 hover，那条路更细致
+    const el=event.target.closest("[data-word]");if(!el)return;
+    setPreview(el.dataset.word);
+    startPronounce(el.dataset.word);
   });
 }
 

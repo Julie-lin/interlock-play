@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f1df" />
   <meta name="description" content="环环相扣 Interlock：中文接词游戏，两字或三字词横竖交替，同字或同音相接，末字回到首字即通关。" />
   <title>环环相扣 · Interlock</title>
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
   <main class="page">
@@ -131,8 +131,10 @@
     var suffix = traditional ? "-t" : "";
     // 每份静态文件后面挂一个版本号。GitHub Pages 给的是 cache-control: max-age=600，
     // 浏览器可以拿着旧的 app.js 不放；网址上加 ?v= 骗不过它——页面是新的，脚本还是缓存里那份。
-    // 版本号变了地址就变了，一定重新下载。改完文件记得跟着改这里（含上面的 style.css
-    // 和下面的 app.js，三处一起动），不然新代码到不了已经开着页面的人手上。
+    // 版本号变了地址就变了，一定重新下载。
+    // 代码和词表分开记：style.css 和 app.js 用上下两处的 v=（改代码就一起加一），
+    // 词表用这里的 V（只有重跑生成脚本、词表真变了才加一）。
+    // 分开是因为释义表有 1.5MB，改一行 app.js 就让手机重下一遍不合适。
     var V = "?v=2";
     document.write('<script src="sounds.js' + V + '"><\/script>');
     document.write('<script src="words' + suffix + '.js' + V + '"><\/script>');
@@ -141,6 +143,6 @@
     document.write('<script async src="glosses' + suffix + '.js' + V + '"><\/script>');
   })();
   </script>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
