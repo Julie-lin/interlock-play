@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f1df" />
   <meta name="description" content="环环相扣 Interlock：中文接词游戏，两字到四字词首尾相扣连成一条链，同字或同音相接，末字回到首字即通关。" />
   <title>环环相扣 · Interlock</title>
-  <link rel="stylesheet" href="style.css?v=8" />
+  <link rel="stylesheet" href="style.css?v=9" />
 </head>
 <body>
   <main class="page">
@@ -111,8 +111,8 @@
 
   <dialog id="winDialog">
     <div class="lantern" aria-hidden="true">福</div>
-    <p class="win-kicker">首尾相逢</p>
-    <h2>环环相扣，首尾成圆！</h2>
+    <p id="winKicker" class="win-kicker">首尾相逢</p>
+    <h2 id="winTitle">环环相扣，首尾成圆！</h2>
     <p id="winSummary"></p>
     <button id="closeWinButton" class="add-button" type="button">看看我的接词</button>
   </dialog>
@@ -139,6 +139,6 @@
     document.write('<script async src="glosses' + suffix + '.js' + V + '"><\/script>');
   })();
   </script>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

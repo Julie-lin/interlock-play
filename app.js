@@ -324,6 +324,11 @@ function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(words))}catc
 function restore(){try{const raw=localStorage.getItem(STORAGE_KEY),parsed=raw?JSON.parse(raw):null;if(Array.isArray(parsed))words=parsed.filter(word=>typeof word==="string"&&isWord(word))}catch{}}
 
 const MAX_WORD=4;
+/* 一轮最多接多少词。收尾（末字回到首字）本来就少见：实测只点提示里的词，
+   四十轮内能收尾的不到三成，中位要十七轮——等于这游戏没有一个说得准的结局。
+   对学的人来说链子太长，注意力早散了；给长辈玩，接到二十词也该有个交代。
+   所以加一个硬上限：接满就收，给一份小结。收尾仍然随时可以提前结束这一轮。 */
+const MAX_CHAIN=20;
 function cleanWord(value){return Array.from(value.trim().replace(/[\s，。！？、]/g,"")).slice(0,MAX_WORD).join("")}
 function isWord(word){return /^\p{Script=Han}{2,4}$/u.test(word)}
 function connectionLabel(a,b){return a===b?a:`${a}/${b}`}
@@ -375,10 +380,56 @@ function renderHints(){
   panel.innerHTML=zh`${chips}${more}<p class="hint-note">点一下填进输入框，再按“接上去”。${goal?`带 ★ 的词能收尾，回到「${goal}」。`:""}</p>`;
 }
 
+/* ---------- 蛇形折行 ----------
+   折行以后，一行读到头得把眼睛甩回行首再往下接，链子在视觉上是断的。
+   改成蛇形：第一行从左往右，第二行反过来从右往左，第三行又正过来，
+   行末拐个弯直接往下接上，线索一路不断。
+   做法是量出来的，不是算出来的：先按自然折行摆一遍，用 offsetTop 分行，
+   再按行重新包一层，奇数行整行反向（row-reverse）。词片内部也要跟着反，
+   否则箭头会指向上一个词那边；箭头本身用 scaleX(-1) 翻个面。
+   .board 左右各留了 22px，量的时候就空着，正好给行末那个拐弯箭头，
+   包完行不会因为多出个箭头而被挤出去。 */
+function snakeRows(board){
+  board.classList.remove("snaked");
+  const chips=[...board.querySelectorAll(".history-chip")];
+  if(chips.length<2)return;
+  const rows=[];let top=null;
+  for(const chip of chips){
+    if(top===null||Math.abs(chip.offsetTop-top)>4){rows.push([]);top=chip.offsetTop}
+    rows[rows.length-1].push(chip);
+  }
+  if(rows.length<2)return; // 一行就摆得下，不用包
+  const frag=document.createDocumentFragment();
+  rows.forEach((row,i)=>{
+    const div=document.createElement("div");
+    div.className=`chain-row${i%2?" rtl":""}`;
+    for(const chip of row)div.appendChild(chip);
+    if(i<rows.length-1)div.insertAdjacentHTML("beforeend",'<i class="turn" aria-hidden="true">\u21b3</i>');
+    frag.appendChild(div);
+  });
+  board.innerHTML="";board.appendChild(frag);
+  board.classList.add("snaked");
+}
+
 function render(){
   const board=$("#board");
   $("#emptyBoard").hidden=words.length>0;board.hidden=!words.length;
-  board.innerHTML=words.map((word,i)=>`<span class="history-chip${inDict(word)?"":" coined"}" role="listitem"><b data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}<em>${escapeHtml(pinyinOf(word))}</em></b>${i<words.length-1?"<i>→</i>":""}</span>`).join("");
+  const closed=words.length>1&&words.at(-1).at(-1)===words[0][0];
+  board.classList.toggle("closed",closed);
+  board.innerHTML=words.map((word,i)=>{
+    // 收尾了就把第一个词和最后一个词标出来——圆是在这两个词之间合上的
+    const ring=closed&&(i===0||i===words.length-1)?" ring-end":"";
+    let link="";
+    if(i<words.length-1){
+      // 同字相接一眼就看得出（两个词都写着那个字），同音相接看不出来：
+      // 「序」接「许」，光看词面只觉得跳了。所以把共用的读音写在箭头下面，
+      // 就是阶梯版那个「序/许」共格格子的意思，换个地方接着说。
+      const from=word.at(-1),to=words[i+1][0],same=from===to;
+      link=`<i class="link${same?"":" homo"}"><span class="arrow">→</span>${same?"":`<em>${escapeHtml(connectionLabel(from,to))}</em>`}</i>`;
+    }
+    return `<span class="history-chip${inDict(word)?"":" coined"}${ring}" role="listitem"><b data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}<em>${escapeHtml(pinyinOf(word))}</em></b>${link}</span>`;
+  }).join("");
+  snakeRows(board);
   $("#wordCount").textContent=words.length;$("#undoButton").disabled=!words.length;
   if(!words.length){
     $("#joinPrompt").innerHTML=zh`<strong>从任意词开始</strong><span>例如：前途、图书馆</span>`;
@@ -425,7 +476,8 @@ function problemsFor(word){
 function addWord(value,{force=false,silent=false}={}){
   const word=cleanWord(value);
   pendingWord="";$("#overrideButton").hidden=true;
-  if(!isWord(word)){setMessage(toTraditional("请输入两个或三个汉字。"),"error");return false}
+  if(!isWord(word)){setMessage(toTraditional("请输入两到四个汉字。"),"error");return false}
+  if(words.length>=MAX_CHAIN&&!silent){setMessage(zh`这一轮已经接满 ${MAX_CHAIN} 词，按「重新开始」再来一轮。`,"error");return false}
   if(!silent){
     const problems=problemsFor(word),blocking=problems.filter(problem=>problem.hard);
     if(blocking.length){setMessage(blocking.map(problem=>problem.text).join(""),"error");return false}
@@ -446,11 +498,23 @@ function addWord(value,{force=false,silent=false}={}){
   // 三字词「图书馆」的末字是馆，四字词更远。用 word[1] 判断，等于三字和四字词
   // 永远收不了尾：★ 不标、不置顶，真接上了也不算通关。
   const first=words[0][0],last=word.at(-1);
-  if(words.length>1&&last===first){
+  const ringClosed=words.length>1&&last===first;
+  if(ringClosed){
     $("#turnHint").textContent=toTraditional("首尾相逢，已通关");
     $("#joinPrompt").innerHTML=zh`<strong>末字“${last}”已回到首字</strong><span>这一轮圆满结束，也可以继续接下去</span>`;
     setMessage(zh`末字“${last}”回到了首字，通关！`,"success");
+    $("#winKicker").textContent=toTraditional("首尾相逢");
+    $("#winTitle").textContent=toTraditional("环环相扣，首尾成圆！");
     $("#winSummary").textContent=zh`你用 ${words.length} 个词，从“${first}”出发，又回到了“${last}”。`;
+    $("#winDialog").showModal();
+  }else if(words.length>=MAX_CHAIN){
+    // 没能成圆，但接满了：也给个了结，不要让它无声无息地一直长下去
+    $("#turnHint").textContent=zh`已接满 ${MAX_CHAIN} 词，这一轮结束`;
+    $("#joinPrompt").innerHTML=zh`<strong>这一轮到此为止</strong><span>接满 ${MAX_CHAIN} 词。按「重新开始」再来一轮</span>`;
+    setMessage(zh`接满 ${MAX_CHAIN} 词，这一轮结束。`,"success");
+    $("#winKicker").textContent=toTraditional("一轮结束");
+    $("#winTitle").textContent=zh`接满 ${MAX_CHAIN} 词！`;
+    $("#winSummary").textContent=zh`你从“${first}”出发接了 ${words.length} 个词，最后停在“${word}”。这次没能绕回“${first}”，下一轮再试。`;
     $("#winDialog").showModal();
   }else if(!silent){
     const previous=words.length>1?words.at(-2).at(-1):"",join=words.length>1?connectionLabel(previous,word[0]):"";
@@ -781,6 +845,10 @@ $("#voicePanel").addEventListener("click",event=>{
   const chip=event.target.closest(".voice-chip");if(!chip)return;
   addWord(chip.dataset.word);
 });
+
+// 蛇形分行是量出来的，窗口一变行就不一样了，得重新摆
+let resizeTimer=0;
+window.addEventListener("resize",()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(render,150)});
 
 for(const selector of ["#hintPanel","#voicePanel","#board"])wireHoverPreview(selector);
 
