@@ -328,58 +328,12 @@ function cleanWord(value){return Array.from(value.trim().replace(/[\s，。！�
 function isWord(word){return /^\p{Script=Han}{2,4}$/u.test(word)}
 function connectionLabel(a,b){return a===b?a:`${a}/${b}`}
 
-function buildPath(list){
-  if(!list.length)return {cells:new Map(),end:{row:0,col:0},maxRow:0,maxCol:0,wordCells:[]};
-  const cells=new Map(),wordCells=[],put=(row,col,char,join=false)=>{const key=`${row}-${col}`;if(!cells.has(key))cells.set(key,{chars:[],join:false});const cell=cells.get(key);if(!cell.chars.includes(char))cell.chars.push(char);if(join)cell.join=true};
-  let row=0,col=0,maxRow=0,maxCol=0;
-  // 每个词从上一个词的末字那一格起步，朝当前方向铺开 length-1 格；
-  // 方向逐词横竖交替，所以三字词一次走两格，两字词走一格。
-  for(let i=0;i<list.length;i++){
-    const word=list[i],down=i%2===1,here=[{row,col}];
-    put(row,col,word[0],i>0);
-    for(let k=1;k<word.length;k++){
-      if(down)row++;else col++;
-      put(row,col,word[k]);
-      here.push({row,col});
-    }
-    maxRow=Math.max(maxRow,row);maxCol=Math.max(maxCol,col);
-    wordCells.push(here);
-  }
-  return {cells,end:{row,col},maxRow,maxCol,wordCells};
-}
-
-/* ---------- 鱼眼排版 ----------
-   链条长了以后整块棋盘会撑破视野。首词和当前词永远保持满格——
-   一个是通关要回到的字，一个是接下去的字——中间的格子按剩余空间等比缩小。 */
-// 极长的链条上，中间格子会缩成没有字的小方块——路径形状还在，
-// 词本身在下面的「接词记录」里照样读得到，首尾两词则始终满格。
-const MIN_CELL=12,DOT_BELOW=20;
-function fullCell(){return window.innerWidth<=390?54:window.innerWidth<=760?64:78}
-function focusTracks(wordCells){
-  const rows=new Set(),cols=new Set();
-  if(!wordCells.length)return {rows,cols};
-  for(const index of new Set([0,wordCells.length-1]))
-    for(const cell of wordCells[index]){rows.add(cell.row);cols.add(cell.col)}
-  return {rows,cols};
-}
-// 横竖各算一次能塞下的尺寸，取小的那个当统一边长，缩小的格子才仍是正方形。
-function shrunkSize(count,bigCount,available,gap){
-  const full=fullCell(),smallCount=count-bigCount;
-  if(smallCount<=0)return full;
-  const room=available-(count-1)*gap-bigCount*full;
-  return Math.max(MIN_CELL,Math.min(full,Math.floor(room/smallCount)));
-}
-function trackSizes(count,big,small){
-  const full=fullCell();
-  return Array.from({length:count},(_,i)=>big.has(i)?full:small);
-}
-function boardSpace(){
-  const viewport=$("#boardViewport"),style=getComputedStyle(viewport);
-  return {
-    width:viewport.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight),
-    height:viewport.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom),
-  };
-}
+/* ---------- 接词记录 ----------
+   一度改成按「格」铺开的字链（相接的两个词共用一格，黄底那格就是共用的字）。
+   两种都做出来比过之后留下这一种：按词出片，词下面带拼音，中间一个红箭头。
+   共格那版把字拆开摆，读起来反而费劲；按词摆，一眼就知道接了哪些词，
+   拼音跟着词走，鼠标停上去还能听读音——箭头本身已经把「环环相扣」说清楚了。
+   两种写法都会折行，手机上都不用横向滚，这一点上没有取舍。 */
 
 function renderPersonal(){
   const note=$("#personalNote");
@@ -411,54 +365,30 @@ function renderHints(){
   const limit=hintsExpanded?HINT_LIMIT_MORE:HINT_LIMIT;
   let shown=reserveLongWords(list,limit);
   // 能收尾的词一定要看得见——那是这一局的赢法，不该被挤到「更多」里
-  if(goal&&!shown.some(word=>word[1]===goal)){
-    const closer=list.find(word=>word[1]===goal);
+  if(goal&&!shown.some(word=>word.at(-1)===goal)){
+    const closer=list.find(word=>word.at(-1)===goal);
     if(closer)shown=[...shown.slice(0,limit-1),closer];
   }
-  const chips=shown.map(word=>`<button type="button" class="hint-chip${goal&&word[1]===goal?" closes":""}" data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}</button>`).join("");
+  const chips=shown.map(word=>`<button type="button" class="hint-chip${goal&&word.at(-1)===goal?" closes":""}" data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}</button>`).join("");
   const more=list.length>shown.length||hintsExpanded
     ?zh`<button type="button" id="moreHints" class="more-hints">${hintsExpanded?toTraditional("收起"):`更多（还有 ${list.length-shown.length} 个）`}</button>`:"";
   panel.innerHTML=zh`${chips}${more}<p class="hint-note">点一下填进输入框，再按“接上去”。${goal?`带 ★ 的词能收尾，回到「${goal}」。`:""}</p>`;
 }
 
 function render(){
-  const {cells,end,maxRow,maxCol,wordCells}=buildPath(words),board=$("#board");board.innerHTML="";
+  const board=$("#board");
   $("#emptyBoard").hidden=words.length>0;board.hidden=!words.length;
-  if(words.length){
-    const big=focusTracks(wordCells),space=boardSpace(),gap=maxCol>6?4:6;
-    const small=Math.min(
-      shrunkSize(maxCol+1,big.cols.size,space.width,gap),
-      shrunkSize(maxRow+1,big.rows.size,space.height,gap),
-    );
-    const colSizes=trackSizes(maxCol+1,big.cols,small),rowSizes=trackSizes(maxRow+1,big.rows,small);
-    board.style.gap=`${gap}px`;
-    board.style.gridTemplateColumns=colSizes.map(size=>`${size}px`).join(" ");
-    board.style.gridTemplateRows=rowSizes.map(size=>`${size}px`).join(" ");
-    cells.forEach((data,key)=>{
-      const [row,col]=key.split("-").map(Number),cell=document.createElement("div"),size=Math.min(rowSizes[row],colSizes[col]);
-      const dot=size<DOT_BELOW;
-      cell.className=`cell${data.join?" join":""}${data.chars.length>1?" dual":""}${row===0&&col===0?" start":""}${row===end.row&&col===end.col?" end":""}${size<34?" tiny":""}${dot?" dot":""}`;
-      cell.style.gridRow=row+1;cell.style.gridColumn=col+1;
-      if(size<46)cell.style.borderWidth=size<26?"1px":"2px";
-      if(dot){cell.textContent=""}
-      else{cell.style.fontSize=`${Math.round(size*(data.chars.length>1?.34:.46))}px`;cell.textContent=data.chars.join("/")}
-      cell.setAttribute("role","gridcell");
-      cell.setAttribute("aria-label",data.chars.length>1?zh`${data.chars.join("或")}，同音共格`:data.chars[0]);
-      board.appendChild(cell);
-    });
-  }
-  $("#wordCount").textContent=words.length;$("#undoButton").disabled=!words.length;$("#historySection").hidden=!words.length;
-  $("#historyCount").textContent=words.length?zh` · 接龙已有 ${words.length} 词`:"";
-  $("#history").innerHTML=words.map((word,i)=>`<span class="history-chip${inDict(word)?"":" coined"}"><b data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}<em>${escapeHtml(pinyinOf(word))}</em></b>${i<words.length-1?"<i>→</i>":""}</span>`).join("");
+  board.innerHTML=words.map((word,i)=>`<span class="history-chip${inDict(word)?"":" coined"}" role="listitem"><b data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}<em>${escapeHtml(pinyinOf(word))}</em></b>${i<words.length-1?"<i>→</i>":""}</span>`).join("");
+  $("#wordCount").textContent=words.length;$("#undoButton").disabled=!words.length;
   if(!words.length){
     $("#joinPrompt").innerHTML=zh`<strong>从任意词开始</strong><span>例如：前途、图书馆</span>`;
     $("#turnHint").textContent=toTraditional("先说一个词（两字到四字）");
   }else{
-    const last=words.at(-1).at(-1),goal=words[0][0],direction=words.length%2===1?toTraditional("向下"):toTraditional("向右");
+    // 链条改成折行以后没有「向右/向下」这回事了，方向措辞一并去掉
+    const last=words.at(-1).at(-1),goal=words[0][0];
     const remaining=nextChoices(words.at(-1),new Set(words)).length;
-    $("#joinPrompt").innerHTML=zh`<strong>请用“${last}”或它的同音字开头</strong><span>目标：末字回到「${goal}」 · 下一词将${direction}延伸</span>`;
-    $("#turnHint").textContent=remaining?zh`下一步：${direction}（从词表里选择一个可接词）`:zh`下一步：${direction}（常用词表已接不下去）`;
-    requestAnimationFrame(()=>{$("#boardViewport").scrollTo({left:$("#boardViewport").scrollWidth,top:$("#boardViewport").scrollHeight,behavior:"smooth"})});
+    $("#joinPrompt").innerHTML=zh`<strong>请用“${last}”或它的同音字开头</strong><span>目标：末字回到「${goal}」</span>`;
+    $("#turnHint").textContent=remaining?zh`已接 ${words.length} 词 · 从候选里挑一个接下去`:zh`已接 ${words.length} 词 · 常用词表已接不下去`;
   }
   renderHints();renderPersonal();save();
 }
@@ -512,7 +442,10 @@ function addWord(value,{force=false,silent=false}={}){
   words.push(word);$("#wordInput").value="";clearVoice();hintsExpanded=false;render();syncInput();
   // 接上第一个词就说明已经会玩了，规则条自动收起，之后每次进来都收着
   if(rulesAuto&&words.length===1){rulesAuto=false;setRulesOpen(false)}
-  const first=words[0][0],last=word[1];
+  // 收尾看的是「末字」，不是第二个字。word[1] 只有两字词才碰巧是末字——
+  // 三字词「图书馆」的末字是馆，四字词更远。用 word[1] 判断，等于三字和四字词
+  // 永远收不了尾：★ 不标、不置顶，真接上了也不算通关。
+  const first=words[0][0],last=word.at(-1);
   if(words.length>1&&last===first){
     $("#turnHint").textContent=toTraditional("首尾相逢，已通关");
     $("#joinPrompt").innerHTML=zh`<strong>末字“${last}”已回到首字</strong><span>这一轮圆满结束，也可以继续接下去</span>`;
@@ -849,10 +782,7 @@ $("#voicePanel").addEventListener("click",event=>{
   addWord(chip.dataset.word);
 });
 
-let resizeTimer=0;
-window.addEventListener("resize",()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(render,150)});
-
-for(const selector of ["#hintPanel","#voicePanel","#history"])wireHoverPreview(selector);
+for(const selector of ["#hintPanel","#voicePanel","#board"])wireHoverPreview(selector);
 
 localiseStaticText();markScriptButtons();initVoice();checkSpeech();restorePersonal();restore();restoreLevel();restoreTypeOpen();restoreRules();syncInput();
 if(words.length)setMessage(zh`接着上次继续——已有 ${words.length} 个词。`,"success");
