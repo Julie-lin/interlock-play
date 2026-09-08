@@ -404,7 +404,7 @@ function snakeRows(board){
     const div=document.createElement("div");
     div.className=`chain-row${i%2?" rtl":""}`;
     for(const chip of row)div.appendChild(chip);
-    if(i<rows.length-1)div.insertAdjacentHTML("beforeend",'<i class="turn" aria-hidden="true">\u21b3</i>');
+    if(i<rows.length-1)div.insertAdjacentHTML("beforeend",'<i class="turn" aria-hidden="true">\u21b4</i>');
     frag.appendChild(div);
   });
   board.innerHTML="";board.appendChild(frag);
@@ -419,15 +419,18 @@ function render(){
   board.innerHTML=words.map((word,i)=>{
     // 收尾了就把第一个词和最后一个词标出来——圆是在这两个词之间合上的
     const ring=closed&&(i===0||i===words.length-1)?" ring-end":"";
-    let link="";
-    if(i<words.length-1){
-      // 同字相接一眼就看得出（两个词都写着那个字），同音相接看不出来：
-      // 「序」接「许」，光看词面只觉得跳了。所以把共用的读音写在箭头下面，
-      // 就是阶梯版那个「序/许」共格格子的意思，换个地方接着说。
-      const from=word.at(-1),to=words[i+1][0],same=from===to;
-      link=`<i class="link${same?"":" homo"}"><span class="arrow">→</span>${same?"":`<em>${escapeHtml(connectionLabel(from,to))}</em>`}</i>`;
-    }
-    return `<span class="history-chip${inDict(word)?"":" coined"}${ring}" role="listitem"><b data-word="${word}" title="${escapeHtml(tipFor(word))}">${word}<em>${escapeHtml(pinyinOf(word))}</em></b>${link}</span>`;
+    // 同音相接标的是那两个字，不是整个词，也不是箭头。
+    // 同字相接一眼就看得出（两个词都写着那个字），同音相接看不出来：
+    // 「学校」接「消息」，校和消同音不同字，光看词面只觉得跳了一下。
+    // 所以把校和消本身染上颜色——阶梯版里它们本来共用一格，颜色就是那一格。
+    const headJoin=i>0&&words[i-1].at(-1)!==word[0];      // 首字是同音接进来的
+    const tailJoin=i<words.length-1&&word.at(-1)!==words[i+1][0]; // 末字是同音接出去的
+    const chars=[...word].map((ch,k)=>{
+      const mark=(k===0&&headJoin)||(k===word.length-1&&tailJoin);
+      return mark?`<span class="homo-char">${escapeHtml(ch)}</span>`:escapeHtml(ch);
+    }).join("");
+    const link=i<words.length-1?`<i class="link">\u2192</i>`:"";
+    return `<span class="history-chip${inDict(word)?"":" coined"}${ring}" role="listitem"><b data-word="${word}" title="${escapeHtml(tipFor(word))}">${chars}<em>${escapeHtml(pinyinOf(word))}</em></b>${link}</span>`;
   }).join("");
   snakeRows(board);
   $("#wordCount").textContent=words.length;$("#undoButton").disabled=!words.length;

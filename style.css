@@ -77,13 +77,13 @@
 .history-chip b{display:flex;flex-direction:column;align-items:center;gap:2px;border:2px solid var(--line);background:#fff;padding:7px 12px;font-family:"Songti SC";font-size:1.25rem;cursor:help;transition:background .12s}
 .history-chip b:hover{background:var(--gold);outline:2px solid var(--jade);outline-offset:1px}
 .history-chip b em{font-family:"PingFang SC",system-ui,sans-serif;font-style:italic;font-size:.66rem;font-weight:800;color:var(--jade);line-height:1;letter-spacing:0}
-.history-chip .link{display:flex;flex-direction:column;align-items:center;gap:1px;font-style:normal;color:var(--red);font-weight:900;line-height:1}
+.history-chip .link{font-style:normal;color:var(--red);font-weight:900;font-size:1.05rem;line-height:1}
 .history-chip.coined b{border-style:dashed;color:var(--muted)}
 .history-chip.coined b em{color:var(--muted)}
-/* 同音相接：把共用的读音写在箭头下面（阶梯版那个「序/许」共格格子的意思） */
-.history-chip .link .arrow{font-size:1.05rem}
-.history-chip .link.homo .arrow{color:var(--jade)}
-.history-chip .link em{font-family:"Songti SC","STSong",serif;font-style:normal;font-size:.72rem;font-weight:900;color:var(--jade);white-space:nowrap;border-bottom:2px dotted var(--jade);padding-bottom:1px}
+/* 同音相接：染的是那两个字本身。淡黄底加深红字，正是阶梯版里共格格子的配色——
+   两个词原先共用一格，现在各自站在自己的词里，靠颜色认亲。 */
+.homo-char{color:var(--red-dark);background:#fff0bd;border-radius:2px;padding:0 2px;margin:0 -1px}
+.chain-row.rtl .history-chip .link{display:inline-block;transform:scaleX(-1)}
 
 /* 成圆之后，把合上圆的那两个词标出来 */
 .history-chip.ring-end b{background:var(--gold);border-color:var(--red-dark);border-width:3px;box-shadow:0 0 0 3px rgba(242,201,76,.45)}
@@ -94,6 +94,5 @@
 .chain-row{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;position:relative}
 .chain-row.rtl{flex-direction:row-reverse}
 .chain-row.rtl .history-chip{flex-direction:row-reverse}
-.chain-row.rtl .history-chip .link .arrow{transform:scaleX(-1)}
 .turn{font-style:normal;font-weight:900;font-size:1.2rem;color:var(--red);flex:0 0 auto;align-self:flex-end}
 .chain-row.rtl .turn{transform:scaleX(-1)}
