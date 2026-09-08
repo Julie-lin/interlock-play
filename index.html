@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f1df" />
   <meta name="description" content="环环相扣 Interlock：中文接词游戏，两字到四字词首尾相扣连成一条链，同字或同音相接，末字回到首字即通关。" />
   <title>环环相扣 · Interlock</title>
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body>
   <main class="page">
@@ -45,7 +45,10 @@
             <p class="label">接词记录</p>
             <p id="turnHint" class="turn-hint">先说一个词（两字到四字）</p>
           </div>
-          <button id="exampleButton" class="small-button" type="button">加载完整示例</button>
+          <div class="toolbar-buttons">
+            <button id="reviewButton" class="small-button" type="button" hidden>通读一遍</button>
+            <button id="exampleButton" class="small-button" type="button">加载完整示例</button>
+          </div>
         </div>
         <div id="boardViewport" class="board-viewport">
           <div id="board" class="board" role="list" aria-label="接词记录"></div>
@@ -139,6 +142,6 @@
     document.write('<script async src="glosses' + suffix + '.js' + V + '"><\/script>');
   })();
   </script>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

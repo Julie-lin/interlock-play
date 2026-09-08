@@ -340,6 +340,12 @@ function connectionLabel(a,b){return a===b?a:`${a}/${b}`}
    拼音跟着词走，鼠标停上去还能听读音——箭头本身已经把「环环相扣」说清楚了。
    两种写法都会折行，手机上都不用横向滚，这一点上没有取舍。 */
 
+/* 链子上的两个箭头。都用 SVG 画，为的是它们看着像同一支笔画的：
+   一样的 stroke-width，一样大的箭头。字符版（→ 和 ↴）做不到这一点——
+   ↴ 在多数字体里又细又小，跟 → 摆在一条链子上像是另一个东西。 */
+const ARROW='<i class="link" aria-hidden="true"><svg viewBox="0 0 26 16" width="26" height="16"><path d="M2 8h16"/><path d="M12 2l6 6-6 6"/></svg></i>';
+const TURN='<i class="turn" aria-hidden="true"><svg viewBox="0 0 26 22" width="26" height="22"><path d="M2 6h16v12"/><path d="M12 12l6 6 6-6"/></svg></i>';
+
 function renderPersonal(){
   const note=$("#personalNote");
   note.hidden=!personalWords.size;
@@ -393,9 +399,13 @@ function snakeRows(board){
   board.classList.remove("snaked");
   const chips=[...board.querySelectorAll(".history-chip")];
   if(chips.length<2)return;
-  const rows=[];let top=null;
+  // 分行看的是 offsetLeft 往回跳，不是 offsetTop 变了。
+  // .board 是 align-items:center，同一行里高矮不齐的词片 offsetTop 本来就各不相同，
+  // 按 offsetTop 分会把一行拆成好几行；而换行时左边距一定退回行首，这个信号是准的。
+  const rows=[];let left=Infinity;
   for(const chip of chips){
-    if(top===null||Math.abs(chip.offsetTop-top)>4){rows.push([]);top=chip.offsetTop}
+    if(chip.offsetLeft<=left){rows.push([])}
+    left=chip.offsetLeft;
     rows[rows.length-1].push(chip);
   }
   if(rows.length<2)return; // 一行就摆得下，不用包
@@ -404,7 +414,12 @@ function snakeRows(board){
     const div=document.createElement("div");
     div.className=`chain-row${i%2?" rtl":""}`;
     for(const chip of row)div.appendChild(chip);
-    if(i<rows.length-1)div.insertAdjacentHTML("beforeend",'<i class="turn" aria-hidden="true">\u21b4</i>');
+    // 行末那个词的直行箭头去掉——它要接的词在下一行，指向行外没有意义，
+    // 换成拐弯箭头来说这件事。两个箭头并排摆着只会让人以为链子分了岔。
+    if(i<rows.length-1){
+      row.at(-1).querySelector(".link")?.remove();
+      div.insertAdjacentHTML("beforeend",TURN);
+    }
     frag.appendChild(div);
   });
   board.innerHTML="";board.appendChild(frag);
@@ -412,6 +427,9 @@ function snakeRows(board){
 }
 
 function render(){
+  // 链子一变（接词、撤回、重开、换字体），正在通读的那一遍就不作数了：
+  // 念到第几个是按下标记的，词表一换，下标指的已经是另一个词。
+  stopReview();
   const board=$("#board");
   $("#emptyBoard").hidden=words.length>0;board.hidden=!words.length;
   const closed=words.length>1&&words.at(-1).at(-1)===words[0][0];
@@ -429,11 +447,14 @@ function render(){
       const mark=(k===0&&headJoin)||(k===word.length-1&&tailJoin);
       return mark?`<span class="homo-char">${escapeHtml(ch)}</span>`:escapeHtml(ch);
     }).join("");
-    const link=i<words.length-1?`<i class="link">\u2192</i>`:"";
-    return `<span class="history-chip${inDict(word)?"":" coined"}${ring}" role="listitem"><b data-word="${word}" title="${escapeHtml(tipFor(word))}">${chars}<em>${escapeHtml(pinyinOf(word))}</em></b>${link}</span>`;
+    // 字面要包成一块。b 是竖排的（字在上、拼音在下），同音字的 <span> 散着放进去
+    // 会各占一行，两字词就断成上下两个字——包一层，一个词才是一片。
+    const link=i<words.length-1?ARROW:"";
+    return `<span class="history-chip${inDict(word)?"":" coined"}${ring}" role="listitem"><b data-word="${word}" title="${escapeHtml(tipFor(word))}"><span class="cs">${chars}</span><em>${escapeHtml(pinyinOf(word))}</em></b>${link}</span>`;
   }).join("");
   snakeRows(board);
   $("#wordCount").textContent=words.length;$("#undoButton").disabled=!words.length;
+  syncReviewButton();
   if(!words.length){
     $("#joinPrompt").innerHTML=zh`<strong>从任意词开始</strong><span>例如：前途、图书馆</span>`;
     $("#turnHint").textContent=toTraditional("先说一个词（两字到四字）");
@@ -570,6 +591,31 @@ const showReading=reading=>reading.split(" ").map(toneMark).join(" ");
 // 接词记录里的拼音只给主读音，多音词全列会把那一行撑宽；完整的读音在悬停提示里。
 function pinyinOf(word){const entry=glossOf(word);return entry?showReading(entry.split("|")[0].split(";")[0]):""}
 function tipFor(word){const entry=glossOf(word);if(!entry)return word;const [pinyin,meaning]=entry.split("|");return `${word}  ${pinyin.split(";").map(showReading).join(" / ")}  ${meaning}`}
+/* 念给人听的英文释义。词表里的释义是给眼睛看的，直接丢给语音合成会念出一堆噪音：
+   「(idiom)」「CL:个」这种标注、截断留下的省略号、夹在英文里的汉字（英文嗓子念不了）。
+   复习时要的是一句干净的意思，所以只取第一个义项，把标注和残渣都去掉。
+   有 18 个词整条释义就是一个被截断的括号（「厉害」是其中之一），
+   严格清完什么都不剩——那就退一步把括号里的话本身念出来，总好过一声不吭。 */
+function speakableSense(sense,keepParens){
+  return (keepParens?sense.replace(/[()]/g," "):sense.replace(/\([^)]*\)/g," ").replace(/\([^)]*$/," "))
+    .replace(/\bCL:\S*/g," ")      // CC-CEDICT 的量词字段
+    .replace(/\u2026/g," ")         // 词表存的是截断过的释义
+    .replace(/[\u4e00-\u9fff]/g," ")
+    .replace(/\s+([,.;:])/g,"$1")
+    .replace(/\s+/g," ").trim()
+    .replace(/^[-,:;.]+|[-,:;.]+$/g,"").trim();
+}
+function spokenGloss(word){
+  const entry=glossOf(word);
+  if(!entry)return "";
+  const senses=(entry.split("|")[1]||"").split(";");
+  for(const keepParens of [false,true])
+    for(const sense of senses){
+      const clean=speakableSense(sense,keepParens);
+      if(clean.length>1)return clean; // 长度 1 挡掉清理完只剩一个字母的残渣
+    }
+  return "";
+}
 let previewWord="";
 function setPreview(word){previewWord=word||"";renderGloss()}
 function escapeHtml(text){return text.replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]))}
@@ -603,11 +649,16 @@ window.addEventListener("gloss-ready",()=>render());
 // 悬停要先停稳一下再念。鼠标扫过一排候选词时，每经过一个都 cancel() 再 speak()，
 // 一秒里十几次——这正是把 Chrome 语音队列搞卡死的那种用法。等 280ms 再开口，
 // 路过的词一个都不会触发，真正停下来看的那个才念。
-const PRONOUNCE_TIMES=3,PRONOUNCE_GAP=900,PRONOUNCE_TIMEOUT=2500,PRONOUNCE_STALL=1500,PRONOUNCE_DELAY=280;
-let pronouncing="",pronounceTimer=0,hoverTimer=0;
+// GLOSS_GAP 是中文和它英文释义之间的停顿。这两句要黏成一句话——
+// 隔到 PRONOUNCE_GAP 那么远，听着就是两件不相干的事，而不是同一个词的两面。
+const PRONOUNCE_TIMES=3,PRONOUNCE_GAP=900,GLOSS_GAP=260,PRONOUNCE_TIMEOUT=2500,PRONOUNCE_STALL=1500,PRONOUNCE_DELAY=280;
+/* pronounceRun 是这一轮朗读的编号。以前队列靠「pronouncing 还是不是这个词」往下走，
+   通读一遍时不够用：停下再从同一个词开始，旧队列认不出自己已经作废，会跟新队列抢着念。
+   改成每次开口发一个新编号，编号一变，上一轮的定时器和回调全部自己失效。 */
+let pronouncing="",pronounceTimer=0,hoverTimer=0,pronounceRun=0;
 
 const synth=("speechSynthesis" in window)?window.speechSynthesis:null;
-let zhVoice=null;
+let zhVoice=null,enVoice=null;
 
 /* ---------- 朗读是否真的能用 ----------
    语音接口「看起来正常」和「真的出声」是两回事：浏览器报告 speaking=true，
@@ -654,6 +705,7 @@ function pickVoice(){
   if(!synth)return;
   const voices=synth.getVoices();
   if(!voices.length)return; // Chrome 异步加载，等 voiceschanged 再挑
+  pickEnVoice(voices);
   const mandarin=voices.filter(v=>/^zh[-_]?CN/i.test(v.lang));
   const pool=mandarin.length?mandarin:voices.filter(v=>/^zh/i.test(v.lang));
   for(const pattern of VOICE_PREFERENCE){
@@ -661,6 +713,20 @@ function pickVoice(){
     if(hit){zhVoice=hit;return}
   }
   zhVoice=pool.find(v=>v.localService)||pool[0]||null;
+}
+/* 英文发音人。只有接词记录里念释义用得上，挑法比中文松——英文是浏览器的母语，
+   默认那把嗓子基本都能用。仍然先挑本机语音：云端语音要联网，慢，断网时是哑的。
+   下面几个是 macOS 上装机就有、一直能出声的。 */
+const EN_VOICE_PREFERENCE=[/^(samantha|alex|daniel|karen|moira)\b/i];
+function pickEnVoice(voices){
+  const english=voices.filter(v=>/^en/i.test(v.lang));
+  const pool=english.filter(v=>/^en[-_]?(US|GB)/i.test(v.lang));
+  const from=pool.length?pool:english;
+  for(const pattern of EN_VOICE_PREFERENCE){
+    const hit=from.find(v=>pattern.test(v.name));
+    if(hit){enVoice=hit;return}
+  }
+  enVoice=from.find(v=>v.localService)||from[0]||null;
 }
 if(synth){
   pickVoice();
@@ -671,60 +737,146 @@ if(synth){
 }
 
 function stopPronounce(){
+  pronounceRun++;
   clearTimeout(hoverTimer);hoverTimer=0;
   clearTimeout(pronounceTimer);pronounceTimer=0;pronouncing="";
   if(synth&&(synth.speaking||synth.pending))synth.cancel();
 }
-function startPronounce(word){
+function startPronounce(word,english="",times=PRONOUNCE_TIMES,onDone=null){
   if(!synth||!word)return;
   stopPronounce();
+  const run=pronounceRun;
   pronouncing=word;
-  let said=0;
+  /* 这一轮要说的话先排成一张单子。中文照旧念 PRONOUNCE_TIMES 遍，
+     英文释义只跟在第一遍后面念一次：意思听一遍就懂了，后面那两遍是在记读音——
+     多念几遍本来就是为了记读音，每遍都带上释义只会把人听烦。 */
+  const plan=[];
+  for(let i=0;i<times;i++){
+    plan.push({text:word,lang:"zh-CN",rate:.8,gap:english&&!i?GLOSS_GAP:PRONOUNCE_GAP});
+    if(english&&!i)plan.push({text:english,lang:"en-US",rate:.95,gap:PRONOUNCE_GAP});
+  }
+  let step=0;
   const say=()=>{
-    if(pronouncing!==word)return; // 鼠标已经移开
-    said++;
+    if(run!==pronounceRun)return; // 鼠标已经移开，或者这一轮被叫停了
+    const item=plan[step++];
+    if(!item)return;
+    const chinese=item.lang==="zh-CN";
     if(synth.paused)synth.resume();
     // 手机上开局那一下 getVoices() 常常还是空的，voiceschanged 也不一定来过，
     // zhVoice 于是留在 null。上面说过，Safari 拿不到指定发音人就用默认英文嗓子念中文，
     // onstart/onend 全都正常，就是没声音。真要开口之前再挑一次，这时列表通常已经到了。
     if(!zhVoice)pickVoice();
-    const utterance=new SpeechSynthesisUtterance(word);
-    utterance.lang="zh-CN";utterance.rate=.8;
-    if(zhVoice)utterance.voice=zhVoice;
+    const utterance=new SpeechSynthesisUtterance(item.text);
+    utterance.lang=item.lang;utterance.rate=item.rate;
+    const voice=chinese?zhVoice:enVoice;
+    if(voice)utterance.voice=voice;
     let started=false,moved=false;
-    const advance=()=>{
+    /* 这一句说完了，接着往下走。三条路都汇到这里——正常的 onend、出错、以及
+       onend 迟迟不来时的兜底定时器——moved 保证只走一次：
+       停顿检查里那句 cancel() 自己会引出一个 onerror，不挡住就会走两次。
+       carryOn 为假表示这一句是出了问题才结束的，那就别再念这个词剩下的遍数了，
+       但仍然要叫 onDone：通读一遍全靠它往下走，不叫的话会停在这里不动，
+       按钮一直显示「停下」，看着像卡死了。 */
+    const finish=carryOn=>{
       if(moved)return;
       moved=true;
       clearTimeout(pronounceTimer);
-      if(pronouncing===word&&said<PRONOUNCE_TIMES)pronounceTimer=setTimeout(say,PRONOUNCE_GAP);
+      if(run!==pronounceRun)return;
+      if(carryOn&&step<plan.length)pronounceTimer=setTimeout(say,item.gap);
+      else if(onDone)onDone();
     };
     utterance.onstart=()=>{started=true;if(speechState==="blocked")setSpeechState("");checkSpeech()};
-    utterance.onend=advance;
-    utterance.onerror=()=>{moved=true;clearTimeout(pronounceTimer)};
-    pronounceTimer=setTimeout(advance,PRONOUNCE_TIMEOUT); // onend 没来也能接着走
+    utterance.onend=()=>finish(true);
+    utterance.onerror=()=>finish(false);
+    // onend 没来也能接着走。兜底时间要跟着话的长短走：一句英文释义比一个词长得多，
+    // 按固定的 2.5 秒算，长句子还没说完下一句就压上来了。
+    pronounceTimer=setTimeout(()=>finish(true),Math.max(PRONOUNCE_TIMEOUT,900+item.text.length*120));
     synth.speak(utterance);
     // 万一还是碰上哑掉的语音：1.5 秒没开口就取消，别让它把队列堵死
     setTimeout(()=>{
-      if(started)return;
+      if(started||run!==pronounceRun)return;
+      // 只有中文哑了才算「这个浏览器发不出声」。英文是附带的那一句，
+      // 它不出声多半只是挑到了一个没数据的英文发音人，
+      // 不该把整个界面变成「发不出声音」的红字——中文明明还念得好好的。
+      // 这一句要赶在 finish 之前：通读一遍在 onDone 里看这个状态决定还要不要往下走。
+      if(chinese)setSpeechState("blocked"); // 接受了但没开口 = 被挡住了
       if(synth.speaking||synth.pending)synth.cancel();
-      moved=true;clearTimeout(pronounceTimer);
-      setSpeechState("blocked"); // 接受了但没开口 = 被挡住了
+      finish(false);
     },PRONOUNCE_STALL);
   };
   say();
 }
 
-function wireHoverPreview(selector){
+/* ---------- 通读一遍 ----------
+   从第一个词走到最后一个，每个词念一遍中文再念一遍英文，念到哪个词就把哪个词圈出来。
+   跟悬停不一样，这里每个词只念一遍：悬停是停在一个词上不走，多念几遍是给人记读音的；
+   通读是一路往下走，每个词念三遍，一条二十个词的链子要念上两三分钟，没人听得完。
+
+   随时可以停：再点一次按钮、往链子里加词、撤回、重开，都算停。
+   停下来靠的是 stopPronounce 里那个编号——已经排在定时器里的下一句会自己作废。 */
+const REVIEW_GAP=520; // 两个词之间的停顿，比一个词内部中英文之间的 GLOSS_GAP 长，断句才听得出来
+let reviewAt=-1,reviewTimer=0;
+const reviewing=()=>reviewAt>=0;
+
+function paintReview(){
+  const chips=[...$("#board").querySelectorAll(".history-chip")];
+  chips.forEach((chip,i)=>chip.classList.toggle("reading",i===reviewAt));
+  // 链子长了会折出好几行，念到的词可能在看不见的地方，带着视线走过去
+  if(reviewing()&&chips[reviewAt])chips[reviewAt].scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+function syncReviewButton(){
+  const button=$("#reviewButton");
+  // 没有语音就没有「通读」这回事，按钮干脆不出现，省得点了没反应
+  button.hidden=!synth||!words.length;
+  button.classList.toggle("running",reviewing());
+  button.textContent=toTraditional(reviewing()?"停下":"通读一遍");
+}
+function stopReview(){
+  if(!reviewing())return;
+  reviewAt=-1;
+  clearTimeout(reviewTimer);reviewTimer=0;
+  stopPronounce();
+  setPreview("");
+  paintReview();syncReviewButton();
+}
+function stepReview(){
+  if(!reviewing())return;
+  if(reviewAt>=words.length){stopReview();return}
+  const word=words[reviewAt];
+  setPreview(word); // 注释框跟着走，听到的和看到的是同一个词
+  paintReview();
+  startPronounce(word,spokenGloss(word),1,()=>{
+    // 一个词都没能出声，说明这个浏览器根本发不出声音（上面那段停顿检查判的）。
+    // 再往下走也只是二十次沉默，不如就此停下，让人看见旁边那条说明。
+    if(!reviewing()||speechState==="blocked"){stopReview();return}
+    reviewAt++;
+    reviewTimer=setTimeout(stepReview,REVIEW_GAP);
+  });
+}
+function toggleReview(){
+  if(reviewing()){stopReview();return}
+  if(!synth||!words.length)return;
+  reviewAt=0;
+  syncReviewButton();
+  stepReview();
+}
+
+function wireHoverPreview(selector,withEnglish=false){
   const root=$(selector);
+  const speak=word=>startPronounce(word,withEnglish?spokenGloss(word):"");
+  /* 通读进行时，鼠标从链子上扫过不该抢话——正念着的词会被半路掐掉，
+     圈出来的词和听到的词也就对不上了。三个入口都让通读优先。 */
   root.addEventListener("mouseover",event=>{
+    if(reviewing())return;
     const el=event.target.closest("[data-word]");if(!el)return;
     if(el.dataset.word===pronouncing)return; // 同一个词上移动，不要重头念
     const word=el.dataset.word;
     setPreview(word);
     clearTimeout(hoverTimer);
-    hoverTimer=setTimeout(()=>startPronounce(word),PRONOUNCE_DELAY);
+    hoverTimer=setTimeout(()=>speak(word),PRONOUNCE_DELAY);
   });
   root.addEventListener("mouseout",event=>{
+    if(reviewing())return;
     const el=event.target.closest("[data-word]");if(!el)return;
     if(event.relatedTarget&&el.contains(event.relatedTarget))return; // 还在同一个词里面
     setPreview("");stopPronounce();
@@ -741,9 +893,10 @@ function wireHoverPreview(selector){
      随后 iOS 补发的那串合成鼠标事件走到 mouseover 时会被那句同词判断挡掉，不会重念。 */
   root.addEventListener("pointerup",event=>{
     if(event.pointerType==="mouse")return; // 鼠标照旧走 hover，那条路更细致
+    if(reviewing())return;
     const el=event.target.closest("[data-word]");if(!el)return;
     setPreview(el.dataset.word);
-    startPronounce(el.dataset.word);
+    speak(el.dataset.word);
   });
 }
 
@@ -831,6 +984,11 @@ document.addEventListener("keydown",event=>{
 $("#undoButton").addEventListener("click",()=>{if(!words.length)return;const removed=words.pop();$("#winDialog").close();render();setMessage(zh`已撤回“${removed}”。`)});
 $("#restartButton").addEventListener("click",()=>{words=[];pendingWord="";$("#wordInput").value="";syncInput();$("#overrideButton").hidden=true;$("#winDialog").close();render();setMessage(toTraditional("已重新开始。"))});
 $("#exampleButton").addEventListener("click",()=>{words=[];EXAMPLE.forEach(word=>addWord(word,{silent:true}));setMessage(toTraditional("已加载完整示例：途/徒、型/形、态/太会在共格中显示。"),"success")});
+$("#reviewButton").addEventListener("click",toggleReview);
+// 正在念的时候按 Esc 就停——一屋子人听着，总得有个一眼看得见的退路
+document.addEventListener("keydown",event=>{if(event.key==="Escape"&&reviewing())stopReview()});
+// 切到别的标签页时把话停下。浏览器不会替我们停，回来时它还在自说自话
+document.addEventListener("visibilitychange",()=>{if(document.hidden)stopReview()});
 $("#closeWinButton").addEventListener("click",()=>$("#winDialog").close());
 $("#scriptSimplified").addEventListener("click",()=>setScript("simp"));
 $("#scriptTraditional").addEventListener("click",()=>setScript("trad"));
@@ -853,7 +1011,12 @@ $("#voicePanel").addEventListener("click",event=>{
 let resizeTimer=0;
 window.addEventListener("resize",()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(render,150)});
 
-for(const selector of ["#hintPanel","#voicePanel","#board"])wireHoverPreview(selector);
+/* 接词记录里念完中文接着念英文：那里是回头复习已经接上的词，读音和意思该一起过一遍，
+   而且释义本来就显示在旁边的注释框里，听到的和看到的对得上。
+   候选词和语音识别结果只念中文——那两处是在挑下一个词，
+   每指一个就多听一句英文，挑的节奏全被拖住了。 */
+for(const selector of ["#hintPanel","#voicePanel"])wireHoverPreview(selector);
+wireHoverPreview("#board",true);
 
 localiseStaticText();markScriptButtons();initVoice();checkSpeech();restorePersonal();restore();restoreLevel();restoreTypeOpen();restoreRules();syncInput();
 if(words.length)setMessage(zh`接着上次继续——已有 ${words.length} 个词。`,"success");
