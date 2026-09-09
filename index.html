@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f1df" />
   <meta name="description" content="环环相扣 Interlock：中文接词游戏，两字到四字词首尾相扣连成一条链，同字或同音相接，末字回到首字即通关。" />
   <title>环环相扣 · Interlock</title>
-  <link rel="stylesheet" href="style.css?v=14" />
+  <link rel="stylesheet" href="style.css?v=15" />
 </head>
 <body>
   <main class="page">
@@ -18,27 +18,6 @@
       </div>
       <div class="count"><strong id="wordCount">0</strong><span>词</span></div>
     </header>
-
-    <p class="rules-row"><button id="rulesToggle" class="link-button" type="button" aria-expanded="true" aria-controls="ruleStrip">收起玩法</button></p>
-    <section class="rule-strip" id="ruleStrip" aria-label="游戏规则">
-      <span>① 每次两字到四字<em>Two to four characters per turn</em></span>
-      <span>② 同字或同音相接<em>Link on the same character, or one that sounds alike</em></span>
-      <span>③ 末字回到首字即通关<em>Close the loop back to your first character to win</em></span>
-      <span>④ 点一下候选词就读给你听<em>Tap a suggestion to hear it read aloud</em></span>
-    </section>
-
-    <section class="level-bar" aria-label="难度 Level">
-      <span class="level-label">难度<em>Level</em></span>
-      <button id="levelBeginner" class="level-button" type="button" aria-pressed="false">初级<em>Beginner · HSK 1–4</em></button>
-      <button id="levelIntermediate" class="level-button on" type="button" aria-pressed="true">中级<em>Intermediate · 2–3 characters</em></button>
-      <button id="levelAdvanced" class="level-button" type="button" aria-pressed="false">高级<em>Advanced · adds 4-character words</em></button>
-      <span class="level-gap"></span>
-      <span class="script-group">
-        <span class="level-label">字体<em>Script</em></span>
-        <button id="scriptSimplified" class="level-button on" type="button" aria-pressed="true">简体<em>Simplified</em></button>
-        <button id="scriptTraditional" class="level-button" type="button" aria-pressed="false">繁體<em>Traditional</em></button>
-      </span>
-    </section>
 
     <section class="play-area">
       <div class="board-card">
@@ -93,6 +72,27 @@
       </aside>
     </section>
 
+    <p class="rules-row"><button id="rulesToggle" class="link-button" type="button" aria-expanded="true" aria-controls="ruleStrip">收起玩法</button></p>
+    <section class="rule-strip" id="ruleStrip" aria-label="游戏规则">
+      <span>① 每次两字到四字<em>Two to four characters per turn</em></span>
+      <span>② 同字或同音相接<em>Link on the same character, or one that sounds alike</em></span>
+      <span>③ 末字回到首字即通关<em>Close the loop back to your first character to win</em></span>
+      <span>④ 点一下候选词就读给你听<em>Tap a suggestion to hear it read aloud</em></span>
+    </section>
+
+    <section class="level-bar" aria-label="难度 Level">
+      <span class="level-label">难度<em>Level</em></span>
+      <button id="levelBeginner" class="level-button" type="button" aria-pressed="false">初级<em>Beginner · HSK 1–4</em></button>
+      <button id="levelIntermediate" class="level-button on" type="button" aria-pressed="true">中级<em>Intermediate · 2–3 characters</em></button>
+      <button id="levelAdvanced" class="level-button" type="button" aria-pressed="false">高级<em>Advanced · adds 4-character words</em></button>
+      <span class="level-gap"></span>
+      <span class="script-group">
+        <span class="level-label">字体<em>Script</em></span>
+        <button id="scriptSimplified" class="level-button on" type="button" aria-pressed="true">简体<em>Simplified</em></button>
+        <button id="scriptTraditional" class="level-button" type="button" aria-pressed="false">繁體<em>Traditional</em></button>
+      </span>
+    </section>
+
   </main>
 
   <footer class="credits">
@@ -137,6 +137,6 @@
     document.write('<script async src="glosses' + suffix + '.js' + V + '"><\/script>');
   })();
   </script>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

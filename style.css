@@ -127,3 +127,21 @@
 
 /* 字体（简/繁）自成一组，好在手机上整组收小 */
 .script-group{display:flex;align-items:stretch;gap:10px}
+
+/* ---------- 谁排在前面 ----------
+   手机上一打开就该能玩：标题底下直接是棋盘和输入框。
+   原来「玩法」「难度／字体」挤在中间，把「给我几个开局词」推到屏幕外 138px，
+   想开局得先往下滚一段——一个还没开始玩的人，多半就不滚了。
+   所以 HTML 里按手机的顺序写（标题→玩起来→玩法→难度），
+   手机上不用 order 兜，读屏和 Tab 的顺序跟看到的一致；
+   桌面上地方够，再用 order 把玩法和难度调回标题下面。 */
+.page{display:flex;flex-direction:column}
+.masthead{order:1}.play-area{order:2}.rules-row{order:3}.rule-strip{order:4}.level-bar{order:5}
+@media(min-width:761px){
+  .rules-row{order:2}.rule-strip{order:3}.level-bar{order:4}.play-area{order:5}
+}
+/* 难度／字体退到最下面之后，跟上面的卡片之间要有个交代，不然像掉队的 */
+@media(max-width:760px){
+  .level-bar{padding-top:4px}
+  .play-area{margin-top:18px}
+}
