@@ -168,7 +168,7 @@ function setScript(mode){
 // 所以单独归到高级档：高级之外不出现在提示里，但任何档位都接得上——
 // 难度只管「提示给什么」，不管「能接什么」，这条规则对四字词一视同仁。
 const ADVANCED_MIN_LEN=4;
-let levelMode="intermediate";
+let levelMode="beginner";
 function withinLevel(word){
   if(personalWords.has(word))return true; // 自己加的词一直算数，不受档位限制
   if(word.length>=ADVANCED_MIN_LEN&&levelMode!=="advanced")return false;
@@ -225,7 +225,7 @@ function restoreTypeOpen(){
 }
 const LEVEL_MODES=["beginner","intermediate","advanced"];
 function setLevel(mode){
-  levelMode=LEVEL_MODES.includes(mode)?mode:"intermediate";
+  levelMode=LEVEL_MODES.includes(mode)?mode:"beginner";
   try{localStorage.setItem(LEVEL_KEY,levelMode)}catch{}
   for(const [id,value] of [["#levelBeginner","beginner"],["#levelIntermediate","intermediate"],["#levelAdvanced","advanced"]]){
     const button=$(id);
@@ -245,7 +245,7 @@ function markScriptButtons(){
 function restoreLevel(){
   let saved=null;
   try{saved=localStorage.getItem(LEVEL_KEY)}catch{}
-  setLevel(LEVEL_MODES.includes(saved)?saved:"intermediate");
+  setLevel(LEVEL_MODES.includes(saved)?saved:"beginner");
 } // 不在 HSK 里的词往后压，但不排除——生僻不等于不能接
 
 // 三字词只占词表的一成，词频又普遍偏低，纯按分数排几乎永远进不了前六——

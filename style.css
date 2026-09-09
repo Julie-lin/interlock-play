@@ -35,11 +35,16 @@
 .voice-chip i{font-family:"PingFang SC",sans-serif;font-style:normal;font-size:.62rem;vertical-align:super;margin-left:3px;color:var(--muted)}
 .voice-chip.offbeat{border-style:dashed;color:var(--muted);background:#f4f1e8}
 @media(prefers-reduced-motion:reduce){.mic-button.listening{animation:none}}
-.gloss-box{margin:0;padding:10px 13px;border-left:6px solid var(--gold);background:#fdfaf1;height:112px;overflow:hidden;display:flex;flex-direction:column;gap:4px}
+/* 高度写死是有道理的：鼠标在候选词上扫过时内容一直在换，
+   框子一会儿高一会儿矮，下面的按钮会跟着上下跳。
+   但原来留的是三行英文的位置——而生成词表时每条释义都截到 64 字符，
+   两行就装得下九十来个，实测没有一条能排到第三行。
+   那一行等于白占，收掉：112px → 90px。 */
+.gloss-box{margin:0;padding:10px 13px;border-left:6px solid var(--gold);background:#fdfaf1;height:90px;overflow:hidden;display:flex;flex-direction:column;gap:4px}
 .gloss-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .gloss-box b{font-family:"Songti SC","STSong",serif;font-size:1.3rem;line-height:1.15}
 .gloss-py{font-size:.95rem;font-weight:800;color:var(--jade);font-style:italic}
-.gloss-en{font-size:.88rem;font-weight:700;line-height:1.45;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.gloss-en{font-size:.88rem;font-weight:700;line-height:1.45;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .gloss-idle{margin:auto 0;font-size:.85rem;font-weight:800;color:#a99e88;line-height:1.5}
 /* 接词记录：词下面带拼音，鼠标停上去变黄，和上面的建议词一致 */
 
