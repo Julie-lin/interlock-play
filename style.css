@@ -108,6 +108,8 @@
 .history-chip.coined b em{color:var(--muted)}
 /* 同音相接：染的是那两个字本身。淡黄底加深红字，正是阶梯版里共格格子的配色——
    两个词原先共用一格，现在各自站在自己的词里，靠颜色认亲。 */
+/* 合上圆的那个字：白字压深红，比同音那档更重——整局就等这一下 */
+.ring-char{color:#fff;background:var(--red-dark);border-radius:3px;padding:0 3px;margin:0 -1px}
 .homo-char{color:var(--red-dark);background:#fff0bd;border-radius:2px;padding:0 2px;margin:0 -1px}
 .chain-row.rtl .history-chip .link{transform:scaleX(-1)}
 

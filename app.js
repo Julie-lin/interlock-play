@@ -439,7 +439,13 @@ function render(){
     // 所以把校和消本身染上颜色——阶梯版里它们本来共用一格，颜色就是那一格。
     const headJoin=i>0&&words[i-1].at(-1)!==word[0];      // 首字是同音接进来的
     const tailJoin=i<words.length-1&&word.at(-1)!==words[i+1][0]; // 末字是同音接出去的
+    // 合上圆的那个字要单独标出来。它在链子的两头——第一个词的首字、最后一个词的末字——
+    // 前面没有词、后面也没有词，上面那两条只看左右邻居，正好谁都管不到它，
+    // 于是整局最该看见的那个字反而一直没颜色。收尾要求末字跟首字是同一个字，
+    // 所以它也永远落不进「同音」那一类，得自己占一档。
+    const ringHead=closed&&i===0,ringTail=closed&&i===words.length-1;
     const chars=[...word].map((ch,k)=>{
+      if((k===0&&ringHead)||(k===word.length-1&&ringTail))return `<span class="ring-char">${escapeHtml(ch)}</span>`;
       const mark=(k===0&&headJoin)||(k===word.length-1&&tailJoin);
       return mark?`<span class="homo-char">${escapeHtml(ch)}</span>`:escapeHtml(ch);
     }).join("");
@@ -453,6 +459,12 @@ function render(){
   syncReviewButton();
   if(!words.length){
     $("#joinPrompt").innerHTML=zh`<strong>从任意词开始</strong><span>例如：前途、图书馆</span>`;
+  }else if(closed){
+    // 这一句以前只在 addWord 里写，刷新一下就没了：圆明明合上了（首尾两个词都亮着），
+    // 提示区却还在催「请用某字开头」。收尾状态是看得出来的，render 自己就能判断。
+    $("#joinPrompt").innerHTML=zh`<strong>末字“${words[0][0]}”已回到首字</strong><span>这一轮圆满结束，也可以继续接下去</span>`;
+  }else if(words.length>=MAX_CHAIN){
+    $("#joinPrompt").innerHTML=zh`<strong>这一轮到此为止</strong><span>接满 ${MAX_CHAIN} 词。按「重新开始」再来一轮</span>`;
   }else{
     // 链条改成折行以后没有「向右/向下」这回事了，方向措辞一并去掉
     const last=words.at(-1).at(-1),goal=words[0][0];
