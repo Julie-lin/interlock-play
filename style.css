@@ -3,8 +3,8 @@
 .latin b{font-weight:900;color:var(--red);letter-spacing:.04em}
 .count{width:86px;height:86px;border-radius:50%;background:var(--gold);border:3px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:4px 4px 0 var(--line)}.count strong{font-size:2rem;line-height:1}.count span{font-weight:900}.rule-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px 26px;padding:18px 4px;border-bottom:1px solid var(--line);font-size:1rem;font-weight:800}
 .rule-strip em{display:block;margin-top:3px;font-style:normal;font-size:.8rem;font-weight:600;line-height:1.4;letter-spacing:0;color:var(--muted)}.play-area{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,.55fr);gap:24px;margin-top:24px;align-items:stretch}.board-card,.entry-card{background:var(--card);border:3px solid var(--line);box-shadow:7px 7px 0 var(--line)}.board-card{min-height:240px;display:flex;flex-direction:column}.board-toolbar{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:2px solid var(--line)}.turn-hint{margin:0;font-size:1.2rem;font-weight:800}.small-button,.secondary-actions button,.override-button{border:2px solid var(--line);background:#fff;padding:10px 13px;font-weight:900;font-size:.95rem;cursor:pointer}.board-viewport{position:relative;flex:1;min-height:180px;overflow-x:hidden;overflow-y:auto;padding:32px;background-image:linear-gradient(rgba(31,37,30,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(31,37,30,.045) 1px,transparent 1px);background-size:24px 24px}.board{display:flex;flex-wrap:wrap;align-items:center;align-content:flex-start;gap:8px;width:100%;margin:0;padding-inline:22px}.empty-board{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;color:#a78d75}.empty-board span{width:82px;height:82px;display:grid;place-items:center;border:3px dashed #a78d75;font-family:"Songti SC";font-size:2.5rem;font-weight:900}.empty-board i{width:38px;height:3px;background:#a78d75}.empty-board p{flex-basis:100%;text-align:center;margin:8px 0;font-weight:800}.entry-card{padding:22px}.join-prompt{padding:14px 16px;background:#edf7ef;border-left:6px solid var(--jade);margin-bottom:16px}.join-prompt strong,.join-prompt span{display:block}.join-prompt strong{font-size:1.2rem}.join-prompt span{color:var(--muted);margin-top:5px}form{display:grid;grid-template-columns:1fr;gap:10px}input{width:100%;height:62px;border:3px solid var(--line);background:#fff;text-align:center;font-family:"Songti SC","STSong",serif;font-size:2rem;font-weight:900;letter-spacing:.22em;padding-left:.22em;border-radius:0}input:focus{outline:5px solid rgba(242,201,76,.65);outline-offset:2px}.add-button{min-height:60px;border:3px solid var(--red-dark);background:var(--red);color:#fff;font-size:1.25rem;font-weight:900;cursor:pointer;box-shadow:0 4px 0 var(--red-dark)}.add-button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--red-dark)}.message{min-height:48px;margin:14px 0 5px;font-size:1rem;font-weight:800;line-height:1.45;color:var(--muted)}.message.error{color:var(--red-dark)}.message.success{color:var(--jade)}.override-button{width:100%;margin-bottom:10px;background:#fff0bd}.secondary-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.secondary-actions button:disabled{opacity:.38;cursor:not-allowed}details{margin-top:18px;border-top:1px solid #cfc7b7;padding-top:14px;color:var(--muted)}summary{font-weight:900;cursor:pointer}details p{font-size:.9rem;line-height:1.6}dialog{width:min(520px,calc(100% - 28px));border:4px solid var(--line);background:var(--card);padding:30px;text-align:center;box-shadow:10px 10px 0 var(--line)}dialog::backdrop{background:rgba(31,37,30,.72)}.lantern{width:90px;height:108px;background:var(--red);color:var(--gold);display:grid;place-items:center;margin:auto;font-family:"Songti SC";font-size:3.5rem;font-weight:900;border-radius:12px;box-shadow:inset 0 0 0 5px var(--gold)}.win-kicker{color:var(--red);font-weight:900;letter-spacing:.18em;margin:18px 0 8px}dialog h2{font-family:"Songti SC";font-size:2.4rem;line-height:1.18;margin:0}dialog p{font-size:1.1rem;line-height:1.55}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}button:focus-visible,summary:focus-visible{outline:4px solid #1769aa;outline-offset:3px}
-@media(max-width:760px){.page{width:min(100% - 18px,1180px);padding-top:18px}.masthead{align-items:center}.count{width:68px;height:68px}.count strong{font-size:1.6rem}.rule-strip{font-size:.92rem;gap:12px 16px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.play-area{grid-template-columns:1fr;gap:18px}.board-card{min-height:200px}.board-toolbar{padding:14px;align-items:flex-start;gap:10px}.small-button{font-size:.84rem}.board-viewport{min-height:150px;padding:20px 16px}.entry-card{padding:18px}input{height:56px;font-size:1.8rem}}
-@media(max-width:390px){h1{font-size:2rem}.kicker{font-size:.72rem}.rule-strip{grid-template-columns:1fr}.board-toolbar{display:block}.small-button{margin-top:12px}.board-viewport{padding-inline:14px}.secondary-actions{grid-template-columns:1fr}}
+@media(max-width:760px){.page{width:min(100% - 18px,1180px);padding-top:18px}.masthead{align-items:center}.count{width:68px;height:68px}.count strong{font-size:1.6rem}.rule-strip{font-size:.92rem;gap:12px 16px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.play-area{grid-template-columns:1fr;gap:18px}.board-card{min-height:200px}.board-toolbar{padding:10px 14px}.small-button{font-size:.84rem}.board-viewport{min-height:150px;padding:20px 16px}.entry-card{padding:18px}input{height:56px;font-size:1.8rem}}
+@media(max-width:390px){h1{font-size:2rem}.kicker{font-size:.72rem}.rule-strip{grid-template-columns:1fr}.board-viewport{padding-inline:14px}.secondary-actions{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 .hint-button{width:100%;border:2px solid var(--jade);background:#edf7ef;color:var(--jade);padding:11px 13px;font-weight:900;font-size:.95rem;cursor:pointer}
 .hint-panel{padding:14px;border:2px dashed #b9b0a0;background:#fdfaf1;display:flex;flex-wrap:wrap;gap:8px}
@@ -61,7 +61,20 @@
 .level-button:hover{border-color:var(--jade)}
 .level-button.on{background:var(--gold);box-shadow:3px 3px 0 var(--line)}
 .level-button.on em{color:var(--ink)}
-@media(max-width:390px){.level-bar{gap:8px}.level-button{flex:1;padding:8px 10px;font-size:.95rem}}
+@media(max-width:760px){
+  /* 英文副标题在窄屏上要折两三行，一条选难度的横杠就吃掉五分之一个屏幕。
+     手机上只留中文——真正要认的就是初级/中级/高级这三个词。 */
+  .level-bar{gap:8px;padding:12px 4px 0;align-items:center}
+  .level-button em,.level-label em{display:none}
+  .level-label{font-size:.78rem;letter-spacing:.1em}
+  .level-button{flex:1;padding:10px 6px;font-size:1rem;text-align:center;border-width:2px}
+  .level-gap{display:none}
+  /* 简繁一辈子只选一次，不该跟难度抢地方：整组收小，退到行尾去 */
+  .script-group{gap:6px;margin-left:auto}
+  .script-group .level-button{flex:0 0 auto;padding:7px 10px;font-size:.85rem}
+  .script-group .level-label{font-size:.72rem}
+}
+@media(max-width:390px){.level-bar{gap:6px}.level-button{padding:9px 4px;font-size:.95rem}}
 .credits{width:min(1180px,calc(100% - 28px));margin:26px auto 40px;padding-top:16px;border-top:1px solid #cfc7b7;color:var(--muted);font-size:.78rem;line-height:1.6}
 .credits p{margin:0 0 6px}
 .credits a{color:var(--jade);font-weight:800}
@@ -109,7 +122,8 @@
 .turn{align-self:center;position:relative;top:9px}
 .chain-row.rtl .turn{transform:scaleX(-1)}
 
-/* 工具条右边现在有两个按钮，窄屏上让它们自己换行，别把标题挤扁 */
-.toolbar-buttons{display:flex;flex-wrap:wrap;gap:9px;flex-shrink:0}
 /* 正在通读时按钮变成「停下」，颜色跟着变，好让人知道点下去是停不是重来 */
 #reviewButton.running{background:var(--gold);border-color:var(--red-dark)}
+
+/* 字体（简/繁）自成一组，好在手机上整组收小 */
+.script-group{display:flex;align-items:stretch;gap:10px}

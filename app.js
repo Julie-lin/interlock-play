@@ -1,10 +1,6 @@
-// 简体还是繁体，由 index.html 里的加载器决定。必须在最前面：
-// EXAMPLE 就在下一行用到它，const 有暂时性死区，声明晚了整个文件都跑不起来。
+// 简体还是繁体，由 index.html 里的加载器决定。放在最前面：
+// 下面好些 const 在求值时就要用它，const 有暂时性死区，声明晚了整个文件都跑不起来。
 const traditionalMode=window.SCRIPT_MODE==="trad";
-// 混着两字词和三字词，最后「化学」的学回到「学校」的学，正好演示通关
-const EXAMPLE=traditionalMode
-  ?["學校","消息","系統","通過","國家","家裡","例如","如果說","說實話","化學"]
-  :["学校","消息","系统","通过","国家","家里","例如","如果说","说实话","化学"];
 const STORAGE_KEY=window.SCRIPT_MODE==="trad"?"endless.chain.t.v1":"endless.chain.v1";
 // 候选词默认只给 6 个。这些词本来就故意读音相近（空军 空间 空中 空气……），
 // 越像越互相干扰，一次摆十二个反而没人细看，学习者只会扫一眼挑第一个。
@@ -457,13 +453,10 @@ function render(){
   syncReviewButton();
   if(!words.length){
     $("#joinPrompt").innerHTML=zh`<strong>从任意词开始</strong><span>例如：前途、图书馆</span>`;
-    $("#turnHint").textContent=toTraditional("先说一个词（两字到四字）");
   }else{
     // 链条改成折行以后没有「向右/向下」这回事了，方向措辞一并去掉
     const last=words.at(-1).at(-1),goal=words[0][0];
-    const remaining=nextChoices(words.at(-1),new Set(words)).length;
     $("#joinPrompt").innerHTML=zh`<strong>请用“${last}”或它的同音字开头</strong><span>目标：末字回到「${goal}」</span>`;
-    $("#turnHint").textContent=remaining?zh`已接 ${words.length} 词 · 从候选里挑一个接下去`:zh`已接 ${words.length} 词 · 常用词表已接不下去`;
   }
   renderHints();renderPersonal();save();
 }
@@ -524,7 +517,6 @@ function addWord(value,{force=false,silent=false}={}){
   const first=words[0][0],last=word.at(-1);
   const ringClosed=words.length>1&&last===first;
   if(ringClosed){
-    $("#turnHint").textContent=toTraditional("首尾相逢，已通关");
     $("#joinPrompt").innerHTML=zh`<strong>末字“${last}”已回到首字</strong><span>这一轮圆满结束，也可以继续接下去</span>`;
     setMessage(zh`末字“${last}”回到了首字，通关！`,"success");
     $("#winKicker").textContent=toTraditional("首尾相逢");
@@ -533,7 +525,6 @@ function addWord(value,{force=false,silent=false}={}){
     $("#winDialog").showModal();
   }else if(words.length>=MAX_CHAIN){
     // 没能成圆，但接满了：也给个了结，不要让它无声无息地一直长下去
-    $("#turnHint").textContent=zh`已接满 ${MAX_CHAIN} 词，这一轮结束`;
     $("#joinPrompt").innerHTML=zh`<strong>这一轮到此为止</strong><span>接满 ${MAX_CHAIN} 词。按「重新开始」再来一轮</span>`;
     setMessage(zh`接满 ${MAX_CHAIN} 词，这一轮结束。`,"success");
     $("#winKicker").textContent=toTraditional("一轮结束");
@@ -826,8 +817,11 @@ function paintReview(){
 }
 function syncReviewButton(){
   const button=$("#reviewButton");
-  // 没有语音就没有「通读」这回事，按钮干脆不出现，省得点了没反应
+  // 没有语音就没有「通读」这回事，按钮干脆不出现，省得点了没反应。
+  // 工具条里只剩这一个按钮了，它一藏，整条工具条跟着收起来——
+  // 手机上那条空边框白占一截，而屏幕上方本来就挤。
   button.hidden=!synth||!words.length;
+  $("#boardToolbar").hidden=button.hidden;
   button.classList.toggle("running",reviewing());
   button.textContent=toTraditional(reviewing()?"停下":"通读一遍");
 }
@@ -983,7 +977,6 @@ document.addEventListener("keydown",event=>{
 });
 $("#undoButton").addEventListener("click",()=>{if(!words.length)return;const removed=words.pop();$("#winDialog").close();render();setMessage(zh`已撤回“${removed}”。`)});
 $("#restartButton").addEventListener("click",()=>{words=[];pendingWord="";$("#wordInput").value="";syncInput();$("#overrideButton").hidden=true;$("#winDialog").close();render();setMessage(toTraditional("已重新开始。"))});
-$("#exampleButton").addEventListener("click",()=>{words=[];EXAMPLE.forEach(word=>addWord(word,{silent:true}));setMessage(toTraditional("已加载完整示例：途/徒、型/形、态/太会在共格中显示。"),"success")});
 $("#reviewButton").addEventListener("click",toggleReview);
 // 正在念的时候按 Esc 就停——一屋子人听着，总得有个一眼看得见的退路
 document.addEventListener("keydown",event=>{if(event.key==="Escape"&&reviewing())stopReview()});
