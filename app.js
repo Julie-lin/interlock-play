@@ -641,6 +641,7 @@ function renderGloss(){
 window.addEventListener("gloss-ready",()=>render());
 /* ---------- 悬停发音 ----------
    鼠标停在词上就念出来；不动的话隔一会儿再念，一共三遍，移开立刻停。
+   手机上点一下只念一遍，见 TAP_TIMES。
 
    Chrome 的语音队列很容易卡死，而且是卡在浏览器进程里——刷新页面都救不回来。
    两个已知的坑都要绕开：
@@ -654,7 +655,9 @@ window.addEventListener("gloss-ready",()=>render());
 // 路过的词一个都不会触发，真正停下来看的那个才念。
 // GLOSS_GAP 是中文和它英文释义之间的停顿。这两句要黏成一句话——
 // 隔到 PRONOUNCE_GAP 那么远，听着就是两件不相干的事，而不是同一个词的两面。
-const PRONOUNCE_TIMES=3,PRONOUNCE_GAP=900,GLOSS_GAP=260,PRONOUNCE_TIMEOUT=2500,PRONOUNCE_STALL=1500,PRONOUNCE_DELAY=280;
+// 手指点一下只念一遍：点是「我要听这个词」，听清了就想接着走；
+// 三遍会拖住手，还压着后面的操作。鼠标悬停照旧三遍——停着不动本来就是在记读音。
+const PRONOUNCE_TIMES=3,TAP_TIMES=1,PRONOUNCE_GAP=900,GLOSS_GAP=260,PRONOUNCE_TIMEOUT=2500,PRONOUNCE_STALL=1500,PRONOUNCE_DELAY=280;
 /* pronounceRun 是这一轮朗读的编号。以前队列靠「pronouncing 还是不是这个词」往下走，
    通读一遍时不够用：停下再从同一个词开始，旧队列认不出自己已经作废，会跟新队列抢着念。
    改成每次开口发一个新编号，编号一变，上一轮的定时器和回调全部自己失效。 */
@@ -869,7 +872,7 @@ function toggleReview(){
 
 function wireHoverPreview(selector,withEnglish=false){
   const root=$(selector);
-  const speak=word=>startPronounce(word,withEnglish?spokenGloss(word):"");
+  const speak=(word,times)=>startPronounce(word,withEnglish?spokenGloss(word):"",times);
   /* 通读进行时，鼠标从链子上扫过不该抢话——正念着的词会被半路掐掉，
      圈出来的词和听到的词也就对不上了。三个入口都让通读优先。 */
   root.addEventListener("mouseover",event=>{
@@ -902,7 +905,7 @@ function wireHoverPreview(selector,withEnglish=false){
     if(reviewing())return;
     const el=event.target.closest("[data-word]");if(!el)return;
     setPreview(el.dataset.word);
-    speak(el.dataset.word);
+    speak(el.dataset.word,TAP_TIMES);
   });
 }
 
