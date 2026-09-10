@@ -661,7 +661,11 @@ const PRONOUNCE_TIMES=3,TAP_TIMES=1,PRONOUNCE_GAP=900,GLOSS_GAP=260,PRONOUNCE_TI
 /* pronounceRun 是这一轮朗读的编号。以前队列靠「pronouncing 还是不是这个词」往下走，
    通读一遍时不够用：停下再从同一个词开始，旧队列认不出自己已经作废，会跟新队列抢着念。
    改成每次开口发一个新编号，编号一变，上一轮的定时器和回调全部自己失效。 */
-let pronouncing="",pronounceTimer=0,hoverTimer=0,pronounceRun=0;
+/* 手指点完，iOS 会补发一串合成鼠标事件（mouseover/mouseout/click）。
+   它们跟真的鼠标长得一模一样，分不出来，只能靠时间：刚点过就一律不算悬停。
+   一秒足够——合成事件都在 300ms 内到，而手机上根本不会有真鼠标跟它抢。 */
+const SYNTHETIC_MOUSE_MS=1000;
+let pronouncing="",pronounceTimer=0,hoverTimer=0,pronounceRun=0,touchAt=0;
 
 const synth=("speechSynthesis" in window)?window.speechSynthesis:null;
 let zhVoice=null,enVoice=null;
@@ -880,6 +884,7 @@ function wireHoverPreview(selector,hoverEnglish=false){
      圈出来的词和听到的词也就对不上了。三个入口都让通读优先。 */
   root.addEventListener("mouseover",event=>{
     if(reviewing())return;
+    if(Date.now()-touchAt<SYNTHETIC_MOUSE_MS)return; // 合成事件，不是真的悬停
     const el=event.target.closest("[data-word]");if(!el)return;
     if(el.dataset.word===pronouncing)return; // 同一个词上移动，不要重头念
     const word=el.dataset.word;
@@ -889,6 +894,7 @@ function wireHoverPreview(selector,hoverEnglish=false){
   });
   root.addEventListener("mouseout",event=>{
     if(reviewing())return;
+    if(Date.now()-touchAt<SYNTHETIC_MOUSE_MS)return; // 同上：这一下是刚才那一点带出来的
     const el=event.target.closest("[data-word]");if(!el)return;
     if(event.relatedTarget&&el.contains(event.relatedTarget))return; // 还在同一个词里面
     setPreview("");stopPronounce();
@@ -901,12 +907,16 @@ function wireHoverPreview(selector,hoverEnglish=false){
      所以触屏单独走一条：手指抬起就念，不延时。延时本来是为了防鼠标扫过一排候选词
      时反复 cancel()+speak() 把 Chrome 的队列搞卡（见 PRONOUNCE_DELAY 那段），
      手指点的是哪个就是哪个，不存在扫过去的问题，不需要等。
-     pointerup 里 startPronounce 会先把 pronouncing 设成这个词，
-     随后 iOS 补发的那串合成鼠标事件走到 mouseover 时会被那句同词判断挡掉，不会重念。 */
+     合成鼠标事件要挡掉，而且两个都得挡。只挡 mouseover 不够：点第二个词时，
+     iOS 会给上一个词补一个 mouseout，那条路直接 stopPronounce()，
+     把刚点的这个词念到一半掐掉。中文听着还在——它已经交给合成器了——
+     后面排队的英文却再也发不出来，看着就像「只有第一次点会念英文」。
+     所以用 touchAt 把这一秒里的悬停事件全部按下，触屏只走 pointerup 这一条。 */
   root.addEventListener("pointerup",event=>{
     if(event.pointerType==="mouse")return; // 鼠标照旧走 hover，那条路更细致
     if(reviewing())return;
     const el=event.target.closest("[data-word]");if(!el)return;
+    touchAt=Date.now();
     setPreview(el.dataset.word);
     speak(el.dataset.word,TAP_TIMES,true);
   });
