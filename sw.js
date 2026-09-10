@@ -7,7 +7,7 @@
    因为请求根本走不到网络。所以两类资源分开处理：
 
    1. index.html —— 网络优先。它是唯一记着「现在该用哪个版本」的文件
-      （style.css?v=19、app.js?v=19、词表 ?v=3 都写在它里面）。
+      （style.css?v=20、app.js?v=20、词表 ?v=3 都写在它里面）。
       永远先去问网络，问不到才拿缓存顶上。这样一发布就能生效，
       离线时也还有得玩。它只有几 KB，多问一次不心疼。
 
@@ -17,15 +17,15 @@
 
    缓存名里带版本：换名字就等于整批作废，activate 时把旧的全删掉，
    不留任何一份可能过期的东西在磁盘上。 */
-const VERSION = "v19";
+const VERSION = "v20";
 const CACHE = `interlock-${VERSION}`;
 
 // 装的时候只预存外壳和简体那一套词表。繁体是另外 2MB，
 // 真去切了再存——大多数人一辈子不会切，不该让所有人先下这一份。
 const PRECACHE = [
   "./",
-  "./style.css?v=19",
-  "./app.js?v=19",
+  "./style.css?v=20",
+  "./app.js?v=20",
   "./sounds.js?v=3",
   "./words.js?v=3",
   "./hsk.js?v=3",

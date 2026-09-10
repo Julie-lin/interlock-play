@@ -870,9 +870,12 @@ function toggleReview(){
   stepReview();
 }
 
-function wireHoverPreview(selector,withEnglish=false){
+function wireHoverPreview(selector,hoverEnglish=false){
   const root=$(selector);
-  const speak=(word,times)=>startPronounce(word,withEnglish?spokenGloss(word):"",times);
+  /* 念不念英文，看的是从哪个入口来的，不是在哪块面板上。
+     鼠标扫过候选词只念中文（见文件末尾那段），手指点下去却是特意挑了这一个，
+     而候选词又正是最可能不认识的那批——「生词」就标在上面。所以点了就连意思一起给。 */
+  const speak=(word,times,english)=>startPronounce(word,english?spokenGloss(word):"",times);
   /* 通读进行时，鼠标从链子上扫过不该抢话——正念着的词会被半路掐掉，
      圈出来的词和听到的词也就对不上了。三个入口都让通读优先。 */
   root.addEventListener("mouseover",event=>{
@@ -882,7 +885,7 @@ function wireHoverPreview(selector,withEnglish=false){
     const word=el.dataset.word;
     setPreview(word);
     clearTimeout(hoverTimer);
-    hoverTimer=setTimeout(()=>speak(word),PRONOUNCE_DELAY);
+    hoverTimer=setTimeout(()=>speak(word,undefined,hoverEnglish),PRONOUNCE_DELAY);
   });
   root.addEventListener("mouseout",event=>{
     if(reviewing())return;
@@ -905,7 +908,7 @@ function wireHoverPreview(selector,withEnglish=false){
     if(reviewing())return;
     const el=event.target.closest("[data-word]");if(!el)return;
     setPreview(el.dataset.word);
-    speak(el.dataset.word,TAP_TIMES);
+    speak(el.dataset.word,TAP_TIMES,true);
   });
 }
 
@@ -1021,8 +1024,10 @@ window.addEventListener("resize",()=>{clearTimeout(resizeTimer);resizeTimer=setT
 
 /* 接词记录里念完中文接着念英文：那里是回头复习已经接上的词，读音和意思该一起过一遍，
    而且释义本来就显示在旁边的注释框里，听到的和看到的对得上。
-   候选词和语音识别结果只念中文——那两处是在挑下一个词，
-   每指一个就多听一句英文，挑的节奏全被拖住了。 */
+   候选词和语音识别结果，鼠标扫过时只念中文——那两处是在挑下一个词，
+   每指一个就多听一句英文，挑的节奏全被拖住了。
+   这条理由只对鼠标成立：手指没有「扫过」这回事，点中哪个就是特意要听哪个，
+   所以触屏上点候选词照样连英文一起念，见 wireHoverPreview 里那段。 */
 for(const selector of ["#hintPanel","#voicePanel"])wireHoverPreview(selector);
 wireHoverPreview("#board",true);
 
